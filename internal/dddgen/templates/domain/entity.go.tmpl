@@ -1,0 +1,60 @@
+package domain
+
+import (
+	"time"
+)
+
+// {{.DomainTitle}} represents a {{.DomainLower}} entity (aggregate root)
+type {{.DomainTitle}} struct {
+	ID          int
+	Name        string
+	Description string
+	Active      bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	CreatedBy   int
+	UpdatedBy   int
+}
+
+// {{.DomainTitle}}Status represents {{.DomainLower}} status
+type {{.DomainTitle}}Status string
+
+const (
+	{{.DomainTitle}}StatusActive   {{.DomainTitle}}Status = "active"
+	{{.DomainTitle}}StatusInactive {{.DomainTitle}}Status = "inactive"
+	{{.DomainTitle}}StatusPending  {{.DomainTitle}}Status = "pending"
+)
+
+// Validate checks if {{.DomainLower}} is valid
+func (e *{{.DomainTitle}}) Validate() error {
+	if e.Name == "" {
+		return Err{{.DomainTitle}}NameRequired
+	}
+	// Add more validation rules
+	return nil
+}
+
+// IsActive checks if {{.DomainLower}} is active
+func (e *{{.DomainTitle}}) IsActive() bool {
+	return e.Active
+}
+
+// Activate activates the {{.DomainLower}}
+func (e *{{.DomainTitle}}) Activate() {
+	e.Active = true
+	e.UpdatedAt = time.Now()
+}
+
+// Deactivate deactivates the {{.DomainLower}}
+func (e *{{.DomainTitle}}) Deactivate() {
+	e.Active = false
+	e.UpdatedAt = time.Now()
+}
+
+// CanBeModified checks if {{.DomainLower}} can be modified
+func (e *{{.DomainTitle}}) CanBeModified() error {
+	if !e.Active {
+		return Err{{.DomainTitle}}NotActive
+	}
+	return nil
+}

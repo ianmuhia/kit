@@ -1,0 +1,135 @@
+package cqrs
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+)
+
+// {{.DomainTitle}}CreatedEventHandler handles {{.DomainTitle}}CreatedEvent
+type {{.DomainTitle}}CreatedEventHandler struct {
+	// Add dependencies like notification service, cache, search index, etc.
+}
+
+// NewOn{{.DomainTitle}}CreatedHandler creates a new event handler
+func NewOn{{.DomainTitle}}CreatedHandler() *{{.DomainTitle}}CreatedEventHandler {
+	return &{{.DomainTitle}}CreatedEventHandler{}
+}
+
+// Handle processes the {{.DomainTitle}}CreatedEvent
+func (h *{{.DomainTitle}}CreatedEventHandler) Handle(ctx context.Context, event *{{.DomainTitle}}CreatedEvent) error {
+	slog.Info("Handling {{.DomainTitle}}CreatedEvent",
+		"{{.DomainLower}}_id", event.{{.DomainTitle}}ID,
+		"name", event.Name,
+	)
+
+	// TODO: Implement your event handling logic
+	// Examples:
+	// - Send welcome notification
+	// - Update search index
+	// - Invalidate cache
+	// - Update analytics
+	// - Trigger downstream workflows
+
+	return nil
+}
+
+// {{.DomainTitle}}UpdatedEventHandler handles {{.DomainTitle}}UpdatedEvent
+type {{.DomainTitle}}UpdatedEventHandler struct {
+	// Add dependencies
+}
+
+// NewOn{{.DomainTitle}}UpdatedHandler creates a new event handler
+func NewOn{{.DomainTitle}}UpdatedHandler() *{{.DomainTitle}}UpdatedEventHandler {
+	return &{{.DomainTitle}}UpdatedEventHandler{}
+}
+
+// Handle processes the {{.DomainTitle}}UpdatedEvent
+func (h *{{.DomainTitle}}UpdatedEventHandler) Handle(ctx context.Context, event *{{.DomainTitle}}UpdatedEvent) error {
+	slog.Info("Handling {{.DomainTitle}}UpdatedEvent",
+		"{{.DomainLower}}_id", event.{{.DomainTitle}}ID,
+	)
+
+	// TODO: Implement your event handling logic
+	// Examples:
+	// - Update search index
+	// - Invalidate cache
+	// - Send update notifications
+	// - Update read models
+
+	return nil
+}
+
+// {{.DomainTitle}}DeletedEventHandler handles {{.DomainTitle}}DeletedEvent
+type {{.DomainTitle}}DeletedEventHandler struct {
+	// Add dependencies
+}
+
+// NewOn{{.DomainTitle}}DeletedHandler creates a new event handler
+func NewOn{{.DomainTitle}}DeletedHandler() *{{.DomainTitle}}DeletedEventHandler {
+	return &{{.DomainTitle}}DeletedEventHandler{}
+}
+
+// Handle processes the {{.DomainTitle}}DeletedEvent
+func (h *{{.DomainTitle}}DeletedEventHandler) Handle(ctx context.Context, event *{{.DomainTitle}}DeletedEvent) error {
+	slog.Info("Handling {{.DomainTitle}}DeletedEvent",
+		"{{.DomainLower}}_id", event.{{.DomainTitle}}ID,
+	)
+
+	// TODO: Implement your event handling logic
+	// Examples:
+	// - Remove from search index
+	// - Invalidate cache
+	// - Archive data
+	// - Clean up related resources
+
+	return nil
+}
+
+// {{.DomainTitle}}ReadModel is an example read model that listens to domain events
+// and builds an optimized view for queries
+type {{.DomainTitle}}ReadModel struct {
+	// Add your read model storage (e.g., cache, search index, denormalized table)
+}
+
+// NewOn{{.DomainTitle}}ReadModel creates a new read model event handler
+func NewOn{{.DomainTitle}}ReadModel() *{{.DomainTitle}}ReadModel {
+	return &{{.DomainTitle}}ReadModel{}
+}
+
+// OnCreated updates the read model when a {{.DomainLower}} is created
+func (rm *{{.DomainTitle}}ReadModel) OnCreated(ctx context.Context, event *{{.DomainTitle}}CreatedEvent) error {
+	slog.Info("Updating read model for created {{.DomainLower}}",
+		"{{.DomainLower}}_id", event.{{.DomainTitle}}ID,
+	)
+
+	// TODO: Update your read model
+	// Examples:
+	// - Add to Redis cache
+	// - Index in Elasticsearch
+	// - Update denormalized view table
+
+	return nil
+}
+
+// OnUpdated updates the read model when a {{.DomainLower}} is updated
+func (rm *{{.DomainTitle}}ReadModel) OnUpdated(ctx context.Context, event *{{.DomainTitle}}UpdatedEvent) error {
+	slog.Info("Updating read model for updated {{.DomainLower}}",
+		"{{.DomainLower}}_id", event.{{.DomainTitle}}ID,
+	)
+
+	// TODO: Update your read model
+
+	return nil
+}
+
+// OnDeleted updates the read model when a {{.DomainLower}} is deleted
+func (rm *{{.DomainTitle}}ReadModel) OnDeleted(ctx context.Context, event *{{.DomainTitle}}DeletedEvent) error {
+	slog.Info("Updating read model for deleted {{.DomainLower}}",
+		"{{.DomainLower}}_id", event.{{.DomainTitle}}ID,
+	)
+
+	// TODO: Update your read model
+
+	return nil
+}

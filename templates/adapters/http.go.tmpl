@@ -1,0 +1,256 @@
+package adapters
+
+import (
+	"context"
+	"net/http"
+
+	"github.com/danielgtaylor/huma/v2"
+
+	"{{.DomainLower}}/internal/{{.DomainLower}}"
+	"{{.DomainLower}}/internal/{{.DomainLower}}/app"
+)
+
+// {{.DomainTitle}}API handles HTTP requests for {{.DomainLower}} operations
+type {{.DomainTitle}}API struct {
+	service *app.Service
+}
+
+// New{{.DomainTitle}}API creates a new {{.DomainTitle}} API handler
+func New{{.DomainTitle}}API(service *app.Service) *{{.DomainTitle}}API {
+	return &{{.DomainTitle}}API{
+		service: service,
+	}
+}
+
+// Register registers all {{.DomainLower}} routes with the Huma API
+func (api *{{.DomainTitle}}API) Register(humaAPI huma.API) {
+	// Register operations with Huma
+	huma.Register(humaAPI, huma.Operation{
+		OperationID: "create-{{.DomainLower}}",
+		Method:      http.MethodPost,
+		Path:        "/{{.DomainLower}}s",
+		Summary:     "Create a new {{.DomainLower}}",
+		Description: "Creates a new {{.DomainLower}} with the provided data",
+		Tags:        []string{"{{.DomainTitle}}"},
+	}, api.Create)
+
+	huma.Register(humaAPI, huma.Operation{
+		OperationID: "get-{{.DomainLower}}",
+		Method:      http.MethodGet,
+		Path:        "/{{.DomainLower}}s/{id}",
+		Summary:     "Get {{.DomainLower}} by ID",
+		Description: "Retrieves a {{.DomainLower}} by its unique identifier",
+		Tags:        []string{"{{.DomainTitle}}"},
+	}, api.GetByID)
+
+	huma.Register(humaAPI, huma.Operation{
+		OperationID: "update-{{.DomainLower}}",
+		Method:      http.MethodPut,
+		Path:        "/{{.DomainLower}}s/{id}",
+		Summary:     "Update {{.DomainLower}}",
+		Description: "Updates an existing {{.DomainLower}}",
+		Tags:        []string{"{{.DomainTitle}}"},
+	}, api.Update)
+
+	huma.Register(humaAPI, huma.Operation{
+		OperationID: "delete-{{.DomainLower}}",
+		Method:      http.MethodDelete,
+		Path:        "/{{.DomainLower}}s/{id}",
+		Summary:     "Delete {{.DomainLower}}",
+		Description: "Deletes a {{.DomainLower}} by ID",
+		Tags:        []string{"{{.DomainTitle}}"},
+	}, api.Delete)
+
+	huma.Register(humaAPI, huma.Operation{
+		OperationID: "list-{{.DomainLower}}s",
+		Method:      http.MethodGet,
+		Path:        "/{{.DomainLower}}s",
+		Summary:     "List {{.DomainLower}}s",
+		Description: "Lists {{.DomainLower}}s with pagination and filtering",
+		Tags:        []string{"{{.DomainTitle}}"},
+	}, api.List)
+}
+
+// Request/Response types
+
+// Create{{.DomainTitle}}Input represents the input for creating a {{.DomainLower}}
+type Create{{.DomainTitle}}Input struct {
+	Body struct {
+		Name        string `json:"name" minLength:"3" maxLength:"100" doc:"{{.DomainTitle}} name" example:"My {{.DomainTitle}}"`
+		Description string `json:"description,omitempty" maxLength:"500" doc:"{{.DomainTitle}} description" example:"A detailed description"`
+		Active      bool   `json:"active" doc:"Whether the {{.DomainLower}} is active" default:"true"`
+	}
+}
+
+// Update{{.DomainTitle}}Input represents the input for updating a {{.DomainLower}}
+type Update{{.DomainTitle}}Input struct {
+	ID   int `path:"id" minimum:"1" doc:"{{.DomainTitle}} ID" example:"123"`
+	Body struct {
+		Name        string `json:"name" minLength:"3" maxLength:"100" doc:"{{.DomainTitle}} name" example:"Updated {{.DomainTitle}}"`
+		Description string `json:"description,omitempty" maxLength:"500" doc:"{{.DomainTitle}} description"`
+	}
+}
+
+// Get{{.DomainTitle}}Input represents the input for getting a {{.DomainLower}} by ID
+type Get{{.DomainTitle}}Input struct {
+	ID int `path:"id" minimum:"1" doc:"{{.DomainTitle}} ID" example:"123"`
+}
+
+// Delete{{.DomainTitle}}Input represents the input for deleting a {{.DomainLower}}
+type Delete{{.DomainTitle}}Input struct {
+	ID int `path:"id" minimum:"1" doc:"{{.DomainTitle}} ID" example:"123"`
+}
+
+// List{{.DomainTitle}}sInput represents the input for listing {{.DomainLower}}s
+type List{{.DomainTitle}}sInput struct {
+	Page     int   `query:"page" minimum:"1" default:"1" doc:"Page number" example:"1"`
+	PageSize int   `query:"page_size" minimum:"1" maximum:"100" default:"20" doc:"Items per page" example:"20"`
+	Active   *bool `query:"active,omitempty" doc:"Filter by active status"`
+}
+
+// {{.DomainTitle}}Response represents a {{.DomainLower}} in API responses
+type {{.DomainTitle}}Response struct {
+	Body struct {
+		ID          int    `json:"id" doc:"{{.DomainTitle}} ID" example:"123"`
+		Name        string `json:"name" doc:"{{.DomainTitle}} name" example:"My {{.DomainTitle}}"`
+		Description string `json:"description" doc:"{{.DomainTitle}} description" example:"A detailed description"`
+		Active      bool   `json:"active" doc:"Active status" example:"true"`
+		CreatedAt   string `json:"created_at" format:"date-time" doc:"Creation timestamp" example:"2024-01-01T12:00:00Z"`
+		UpdatedAt   string `json:"updated_at" format:"date-time" doc:"Last update timestamp" example:"2024-01-01T12:00:00Z"`
+	}
+}
+
+// List{{.DomainTitle}}sResponse represents a paginated list of {{.DomainLower}}s
+type List{{.DomainTitle}}sResponse struct {
+	Body struct {
+		Items []struct {
+			ID          int    `json:"id" doc:"{{.DomainTitle}} ID" example:"123"`
+			Name        string `json:"name" doc:"{{.DomainTitle}} name" example:"My {{.DomainTitle}}"`
+			Description string `json:"description" doc:"{{.DomainTitle}} description"`
+			Active      bool   `json:"active" doc:"Active status" example:"true"`
+			CreatedAt   string `json:"created_at" format:"date-time" doc:"Creation timestamp"`
+			UpdatedAt   string `json:"updated_at" format:"date-time" doc:"Last update timestamp"`
+		} `json:"items" doc:"List of {{.DomainLower}}s"`
+		Total    int `json:"total" doc:"Total number of items" example:"100"`
+		Page     int `json:"page" doc:"Current page" example:"1"`
+		PageSize int `json:"page_size" doc:"Items per page" example:"20"`
+	}
+}
+
+// NoContentResponse represents an empty response
+type NoContentResponse struct{}
+
+// Handler implementations
+
+// Create creates a new {{.DomainLower}}
+func (api *{{.DomainTitle}}API) Create(ctx context.Context, input *Create{{.DomainTitle}}Input) (*{{.DomainTitle}}Response, error) {
+	cmd := app.Create{{.DomainTitle}}Command{
+		Name:        input.Body.Name,
+		Description: input.Body.Description,
+		Active:      input.Body.Active,
+	}
+
+	entity, err := api.service.Create{{.DomainTitle}}(ctx, cmd)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to create {{.DomainLower}}", err)
+	}
+
+	return convert{{.DomainTitle}}ToResponse(entity), nil
+}
+
+// GetByID retrieves a {{.DomainLower}} by ID
+func (api *{{.DomainTitle}}API) GetByID(ctx context.Context, input *Get{{.DomainTitle}}Input) (*{{.DomainTitle}}Response, error) {
+	entity, err := api.service.Get{{.DomainTitle}}(ctx, input.ID)
+	if err != nil {
+		if err == {{.DomainLower}}.Err{{.DomainTitle}}NotFound {
+			return nil, huma.Error404NotFound("{{.DomainTitle}} not found")
+		}
+		return nil, huma.Error500InternalServerError("Failed to get {{.DomainLower}}", err)
+	}
+
+	return convert{{.DomainTitle}}ToResponse(entity), nil
+}
+
+// Update updates an existing {{.DomainLower}}
+func (api *{{.DomainTitle}}API) Update(ctx context.Context, input *Update{{.DomainTitle}}Input) (*{{.DomainTitle}}Response, error) {
+	cmd := app.Update{{.DomainTitle}}Command{
+		Name:        input.Body.Name,
+		Description: input.Body.Description,
+	}
+
+	entity, err := api.service.Update{{.DomainTitle}}(ctx, input.ID, cmd)
+	if err != nil {
+		if err == {{.DomainLower}}.Err{{.DomainTitle}}NotFound {
+			return nil, huma.Error404NotFound("{{.DomainTitle}} not found")
+		}
+		return nil, huma.Error500InternalServerError("Failed to update {{.DomainLower}}", err)
+	}
+
+	return convert{{.DomainTitle}}ToResponse(entity), nil
+}
+
+// Delete deletes a {{.DomainLower}} by ID
+func (api *{{.DomainTitle}}API) Delete(ctx context.Context, input *Delete{{.DomainTitle}}Input) (*NoContentResponse, error) {
+	err := api.service.Delete{{.DomainTitle}}(ctx, input.ID)
+	if err != nil {
+		if err == {{.DomainLower}}.Err{{.DomainTitle}}NotFound {
+			return nil, huma.Error404NotFound("{{.DomainTitle}} not found")
+		}
+		return nil, huma.Error500InternalServerError("Failed to delete {{.DomainLower}}", err)
+	}
+
+	return &NoContentResponse{}, nil
+}
+
+// List lists {{.DomainLower}}s with pagination
+func (api *{{.DomainTitle}}API) List(ctx context.Context, input *List{{.DomainTitle}}sInput) (*List{{.DomainTitle}}sResponse, error) {
+	filters := {{.DomainLower}}.ListFilters{
+		Page:     input.Page,
+		PageSize: input.PageSize,
+		Active:   input.Active,
+	}
+
+	entities, total, err := api.service.List{{.DomainTitle}}s(ctx, filters)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to list {{.DomainLower}}s", err)
+	}
+
+	resp := &List{{.DomainTitle}}sResponse{}
+	resp.Body.Items = make([]struct {
+		ID          int    `json:"id" doc:"{{.DomainTitle}} ID" example:"123"`
+		Name        string `json:"name" doc:"{{.DomainTitle}} name" example:"My {{.DomainTitle}}"`
+		Description string `json:"description" doc:"{{.DomainTitle}} description"`
+		Active      bool   `json:"active" doc:"Active status" example:"true"`
+		CreatedAt   string `json:"created_at" format:"date-time" doc:"Creation timestamp"`
+		UpdatedAt   string `json:"updated_at" format:"date-time" doc:"Last update timestamp"`
+	}, len(entities))
+
+	for i, entity := range entities {
+		resp.Body.Items[i].ID = entity.ID
+		resp.Body.Items[i].Name = entity.Name
+		resp.Body.Items[i].Description = entity.Description
+		resp.Body.Items[i].Active = entity.Active
+		resp.Body.Items[i].CreatedAt = entity.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+		resp.Body.Items[i].UpdatedAt = entity.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
+	}
+
+	resp.Body.Total = total
+	resp.Body.Page = input.Page
+	resp.Body.PageSize = input.PageSize
+
+	return resp, nil
+}
+
+// Helper functions
+
+// convert{{.DomainTitle}}ToResponse converts a domain entity to API response
+func convert{{.DomainTitle}}ToResponse(entity *{{.DomainLower}}.{{.DomainTitle}}) *{{.DomainTitle}}Response {
+	resp := &{{.DomainTitle}}Response{}
+	resp.Body.ID = entity.ID
+	resp.Body.Name = entity.Name
+	resp.Body.Description = entity.Description
+	resp.Body.Active = entity.Active
+	resp.Body.CreatedAt = entity.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+	resp.Body.UpdatedAt = entity.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
+	return resp
+}

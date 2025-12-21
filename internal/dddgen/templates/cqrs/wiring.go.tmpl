@@ -1,0 +1,199 @@
+package cqrs
+
+import (
+	"fmt"
+	"time"
+
+	{{.DomainLower}} "ibnb/internal/{{.DomainLower}}"
+	"github.com/ThreeDotsLabs/watermill"
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
+	"github.com/ThreeDotsLabs/watermill/message"
+)
+
+// Setup{{.DomainTitle}}CQRS configures and returns the CQRS components for {{.DomainLower}} domain
+func Setup{{.DomainTitle}}CQRS(
+	router *message.Router,
+	commandPublisher message.Publisher,
+	commandSubscriber message.Subscriber,
+	eventPublisher message.Publisher,
+	eventSubscriber message.Subscriber,
+	repo {{.DomainLower}}.Repository,
+	logger watermill.LoggerAdapter,
+) (*cqrs.CommandBus, *cqrs.EventBus, error) {
+
+	// Configure marshaler
+	marshaler := cqrs.JSONMarshaler{
+		GenerateName: cqrs.StructName,
+	}
+
+	// Topic generation functions
+	generateCommandsTopic := func(commandName string) string {
+		return "commands.{{.DomainLower}}." + commandName
+	}
+
+	generateEventsTopic := func(eventName string) string {
+		return "events.{{.DomainLower}}." + eventName
+	}
+
+	// Command Bus Configuration
+	commandBus, err := cqrs.NewCommandBusWithConfig(commandPublisher, cqrs.CommandBusConfig{
+		GeneratePublishTopic: func(params cqrs.CommandBusGeneratePublishTopicParams) (string, error) {
+			return generateCommandsTopic(params.CommandName), nil
+		},
+		OnSend: func(params cqrs.CommandBusOnSendParams) error {
+			logger.Info("Sending command", watermill.LogFields{
+				"command_name": params.CommandName,
+			})
+			params.Message.Metadata.Set("sent_at", time.Now().String())
+			return nil
+		},
+		Marshaler: marshaler,
+		Logger:    logger,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create command bus: %w", err)
+	}
+
+	// Command Processor Configuration
+	commandProcessor, err := cqrs.NewCommandProcessorWithConfig(
+		router,
+		cqrs.CommandProcessorConfig{
+			GenerateSubscribeTopic: func(params cqrs.CommandProcessorGenerateSubscribeTopicParams) (string, error) {
+				return generateCommandsTopic(params.CommandName), nil
+			},
+			SubscriberConstructor: func(params cqrs.CommandProcessorSubscriberConstructorParams) (message.Subscriber, error) {
+				return commandSubscriber, nil
+			},
+			OnHandle: func(params cqrs.CommandProcessorOnHandleParams) error {
+				start := time.Now()
+				err := params.Handler.Handle(params.Message.Context(), params.Command)
+				
+				logger.Info("Command handled", watermill.LogFields{
+					"command_name": params.CommandName,
+					"duration":     time.Since(start),
+					"err":          err,
+				})
+				
+				return err
+			},
+			Marshaler: marshaler,
+			Logger:    logger,
+		},
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create command processor: %w", err)
+	}
+
+	// Event Bus Configuration
+	eventBus, err := cqrs.NewEventBusWithConfig(eventPublisher, cqrs.EventBusConfig{
+		GeneratePublishTopic: func(params cqrs.GenerateEventPublishTopicParams) (string, error) {
+			return generateEventsTopic(params.EventName), nil
+		},
+		OnPublish: func(params cqrs.OnEventSendParams) error {
+			logger.Info("Publishing event", watermill.LogFields{
+				"event_name": params.EventName,
+			})
+			params.Message.Metadata.Set("published_at", time.Now().String())
+			return nil
+		},
+		Marshaler: marshaler,
+		Logger:    logger,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create event bus: %w", err)
+	}
+
+	// Event Processor Configuration
+	eventProcessor, err := cqrs.NewEventProcessorWithConfig(
+		router,
+		cqrs.EventProcessorConfig{
+			GenerateSubscribeTopic: func(params cqrs.EventProcessorGenerateSubscribeTopicParams) (string, error) {
+				return generateEventsTopic(params.EventName), nil
+			},
+			SubscriberConstructor: func(params cqrs.EventProcessorSubscriberConstructorParams) (message.Subscriber, error) {
+				return eventSubscriber, nil
+			},
+			OnHandle: func(params cqrs.EventProcessorOnHandleParams) error {
+				start := time.Now()
+				err := params.Handler.Handle(params.Message.Context(), params.Event)
+				
+				logger.Info("Event handled", watermill.LogFields{
+					"event_name":   params.EventName,
+					"handler_name": params.HandlerName,
+					"duration":     time.Since(start),
+					"err":          err,
+				})
+				
+				return err
+			},
+			Marshaler: marshaler,
+			Logger:    logger,
+		},
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create event processor: %w", err)
+	}
+
+	// Register Command Handlers
+	err = commandProcessor.AddHandlers(
+		cqrs.NewCommandHandler("Create{{.DomainTitle}}Handler", NewCreate{{.DomainTitle}}Handler(repo, eventBus).Handle),
+		cqrs.NewCommandHandler("Update{{.DomainTitle}}Handler", NewUpdate{{.DomainTitle}}Handler(repo, eventBus).Handle),
+		cqrs.NewCommandHandler("Delete{{.DomainTitle}}Handler", NewDelete{{.DomainTitle}}Handler(repo, eventBus).Handle),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to add command handlers: %w", err)
+	}
+
+	// Register Event Handlers
+	readModel := NewOn{{.DomainTitle}}ReadModel()
+	err = eventProcessor.AddHandlers(
+		cqrs.NewEventHandler("On{{.DomainTitle}}Created", NewOn{{.DomainTitle}}CreatedHandler().Handle),
+		cqrs.NewEventHandler("On{{.DomainTitle}}Updated", NewOn{{.DomainTitle}}UpdatedHandler().Handle),
+		cqrs.NewEventHandler("On{{.DomainTitle}}Deleted", NewOn{{.DomainTitle}}DeletedHandler().Handle),
+		// Read model handlers
+		cqrs.NewEventHandler("{{.DomainTitle}}ReadModel.OnCreated", readModel.OnCreated),
+		cqrs.NewEventHandler("{{.DomainTitle}}ReadModel.OnUpdated", readModel.OnUpdated),
+		cqrs.NewEventHandler("{{.DomainTitle}}ReadModel.OnDeleted", readModel.OnDeleted),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to add event handlers: %w", err)
+	}
+
+	return commandBus, eventBus, nil
+}
+
+// Example usage:
+//
+// // Create router
+// router, _ := message.NewRouter(message.RouterConfig{}, logger)
+// router.AddMiddleware(middleware.Recoverer)
+//
+// // Setup publishers and subscribers (example with AMQP)
+// amqpConfig := amqp.NewDurableQueueConfig(amqpAddress)
+// commandPublisher, _ := amqp.NewPublisher(amqpConfig, logger)
+// commandSubscriber, _ := amqp.NewSubscriber(amqpConfig, logger)
+// 
+// eventPubSubConfig := amqp.NewDurablePubSubConfig(amqpAddress, nil)
+// eventPublisher, _ := amqp.NewPublisher(eventPubSubConfig, logger)
+// eventSubscriber, _ := amqp.NewSubscriber(eventPubSubConfig, logger)
+//
+// // Setup CQRS
+// commandBus, eventBus, _ := Setup{{.DomainTitle}}CQRS(
+//     router,
+//     commandPublisher,
+//     commandSubscriber,
+//     eventPublisher,
+//     eventSubscriber,
+//     repo,
+//     logger,
+// )
+//
+// // Start router
+// router.Run(context.Background())
+//
+// // Send commands
+// cmd := &Create{{.DomainTitle}}Command{
+//     Name: "Example",
+//     CreatedBy: 1,
+// }
+// commandBus.Send(context.Background(), cmd)

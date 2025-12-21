@@ -1,0 +1,64 @@
+package domain
+
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/ThreeDotsLabs/watermill"
+	"github.com/ThreeDotsLabs/watermill/message"
+)
+
+// Event types
+type EventType string
+
+const (
+	Event{{.DomainTitle}}Created EventType = "{{.DomainLower}}.created"
+	Event{{.DomainTitle}}Updated EventType = "{{.DomainLower}}.updated"
+	Event{{.DomainTitle}}Deleted EventType = "{{.DomainLower}}.deleted"
+)
+
+// {{.DomainTitle}}CreatedEvent published when {{.DomainLower}} is created
+type {{.DomainTitle}}CreatedEvent struct {
+	{{.DomainTitle}}ID int       `json:"{{.DomainLower}}_id"`
+	Name               string    `json:"name"`
+	CreatedBy          int       `json:"created_by,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+func (e {{.DomainTitle}}CreatedEvent) ToMessage() (*message.Message, error) {
+	payload, err := json.Marshal(e)
+	if err != nil {
+		return nil, err
+	}
+	return message.NewMessage(watermill.NewUUID(), payload), nil
+}
+
+// {{.DomainTitle}}UpdatedEvent published when {{.DomainLower}} is updated
+type {{.DomainTitle}}UpdatedEvent struct {
+	{{.DomainTitle}}ID int       `json:"{{.DomainLower}}_id"`
+	UpdatedBy          int       `json:"updated_by,omitempty"`
+	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+func (e {{.DomainTitle}}UpdatedEvent) ToMessage() (*message.Message, error) {
+	payload, err := json.Marshal(e)
+	if err != nil {
+		return nil, err
+	}
+	return message.NewMessage(watermill.NewUUID(), payload), nil
+}
+
+// {{.DomainTitle}}DeletedEvent published when {{.DomainLower}} is deleted
+type {{.DomainTitle}}DeletedEvent struct {
+	{{.DomainTitle}}ID int       `json:"{{.DomainLower}}_id"`
+	DeletedBy          int       `json:"deleted_by,omitempty"`
+	DeletedAt          time.Time `json:"deleted_at"`
+}
+
+func (e {{.DomainTitle}}DeletedEvent) ToMessage() (*message.Message, error) {
+	payload, err := json.Marshal(e)
+	if err != nil {
+		return nil, err
+	}
+	return message.NewMessage(watermill.NewUUID(), payload), nil
+}

@@ -1,0 +1,157 @@
+package main
+
+import (
+	"context"
+	"log"
+
+	"ibnb/internal/{{.DomainLower}}/adapters"
+	"ibnb/internal/{{.DomainLower}}/app"
+	"ibnb/pkg/featureflags"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/labstack/echo/v4"
+)
+
+// Example of how to wire up the {{.DomainLower}} domain with decorators
+func setup{{.DomainTitle}}Domain(db *pgxpool.Pool, e *echo.Echo, ffClient featureflags.Client) {
+	// 1. Create base repository
+	repo := adapters.New{{.DomainTitle}}PostgresRepository(db)
+
+	// 2. Create base service (no decorators)
+	baseService := app.NewService(repo)
+
+	// 3. Create decorator implementations (or use NoOp for development)
+	permChecker := &AuthzedPermissionChecker{
+		// Initialize with your Authzed client
+	}
+	auditLogger := &PostgresAuditLogger{
+		// Initialize with your audit logging
+	}
+	cache := &RedisCache{
+		// Initialize with your Redis client
+	}
+	metrics := &PrometheusMetrics{
+		// Initialize with your Prometheus registry
+	}
+
+	// 4. Wrap service with decorators for production
+	decoratedService := app.NewServiceDecorator(
+		baseService,
+		permChecker,
+		auditLogger,
+		ffClient,
+		cache,
+		metrics,
+	)
+
+	// 5. Create HTTP handler with decorated service
+	httpHandler := adapters.New{{.DomainTitle}}HTTPHandler(decoratedService)
+
+	// 6. Register routes
+	apiGroup := e.Group("/api/v1")
+	httpHandler.RegisterRoutes(apiGroup)
+
+	log.Println("{{.DomainTitle}} domain wired successfully with decorators")
+}
+
+// For development/testing without decorators
+func setup{{.DomainTitle}}DomainSimple(db *pgxpool.Pool, e *echo.Echo) {
+	repo := adapters.New{{.DomainTitle}}PostgresRepository(db)
+	service := app.NewService(repo)
+	
+	// Use NoOp implementations for development
+	decoratedService := app.NewServiceDecorator(
+		service,
+		&app.NoOpPermissionChecker{},
+		&app.NoOpAuditLogger{},
+		nil, // feature flags
+		&app.NoOpCacheStore{},
+		&app.NoOpMetricsCollector{},
+	)
+	
+	httpHandler := adapters.New{{.DomainTitle}}HTTPHandler(decoratedService)
+	apiGroup := e.Group("/api/v1")
+	httpHandler.RegisterRoutes(apiGroup)
+}
+
+// Example permission checker using Authzed
+type AuthzedPermissionChecker struct {
+	// Add your Authzed client here
+}
+
+func (a *AuthzedPermissionChecker) CheckPermission(ctx context.Context, userID int, resource string, action string) error {
+	// TODO: Implement Authzed permission check
+	// Example:
+	// return a.authzedClient.CheckPermission(ctx, userID, resource, action)
+	return nil
+}
+
+// Example audit logger using PostgreSQL
+type PostgresAuditLogger struct {
+	db *pgxpool.Pool
+}
+
+func (p *PostgresAuditLogger) LogCreate(ctx context.Context, userID int, resource string, resourceID int, data interface{}) {
+	// TODO: Insert into audit_logs table
+	log.Printf("AUDIT: User %d created %s %d", userID, resource, resourceID)
+}
+
+func (p *PostgresAuditLogger) LogUpdate(ctx context.Context, userID int, resource string, resourceID int, before, after interface{}) {
+	// TODO: Insert into audit_logs table with diff
+	log.Printf("AUDIT: User %d updated %s %d", userID, resource, resourceID)
+}
+
+func (p *PostgresAuditLogger) LogDelete(ctx context.Context, userID int, resource string, resourceID int) {
+	// TODO: Insert into audit_logs table
+	log.Printf("AUDIT: User %d deleted %s %d", userID, resource, resourceID)
+}
+
+func (p *PostgresAuditLogger) LogAccess(ctx context.Context, userID int, resource string, resourceID int) {
+	// Optional: Log read access for sensitive data
+	log.Printf("AUDIT: User %d accessed %s %d", userID, resource, resourceID)
+}
+
+// Example cache using Redis
+type RedisCache struct {
+	// Add your Redis client here
+}
+
+func (r *RedisCache) Get(ctx context.Context, key string, dest interface{}) error {
+	// TODO: Implement Redis GET
+	return nil
+}
+
+func (r *RedisCache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+	// TODO: Implement Redis SET with TTL
+	return nil
+}
+
+func (r *RedisCache) Delete(ctx context.Context, key string) error {
+	// TODO: Implement Redis DEL
+	return nil
+}
+
+func (r *RedisCache) DeleteByPrefix(ctx context.Context, prefix string) error {
+	// TODO: Implement Redis key scan and delete
+	return nil
+}
+
+// Example metrics using Prometheus
+type PrometheusMetrics struct {
+	// Add your Prometheus registry here
+}
+
+func (p *PrometheusMetrics) IncrementCounter(metric string, labels map[string]string) {
+	// TODO: Increment Prometheus counter
+	log.Printf("METRIC: %s +1 %v", metric, labels)
+}
+
+func (p *PrometheusMetrics) RecordDuration(metric string, duration time.Duration, labels map[string]string) {
+	// TODO: Record Prometheus histogram
+	log.Printf("METRIC: %s = %v %v", metric, duration, labels)
+}
+
+func (p *PrometheusMetrics) RecordGauge(metric string, value float64, labels map[string]string) {
+	// TODO: Set Prometheus gauge
+	log.Printf("METRIC: %s = %f %v", metric, value, labels)
+}

@@ -1,0 +1,223 @@
+package adapters
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"ibnb/internal/{{.DomainLower}}/app"
+	{{.DomainLower}} "ibnb/internal/{{.DomainLower}}"
+
+	"go.temporal.io/sdk/workflow"
+)
+
+// {{.DomainTitle}}Workflows contains all {{.DomainLower}}-related workflows
+type {{.DomainTitle}}Workflows struct {
+	service *app.Service
+}
+
+// New{{.DomainTitle}}Workflows creates a new workflows instance
+func New{{.DomainTitle}}Workflows(service *app.Service) *{{.DomainTitle}}Workflows {
+	return &{{.DomainTitle}}Workflows{
+		service: service,
+	}
+}
+
+// Create{{.DomainTitle}}WorkflowInput represents the input for Create{{.DomainTitle}}Workflow
+type Create{{.DomainTitle}}WorkflowInput struct {
+	Name        string
+	Description string
+	Active      bool
+	CreatedBy   int
+}
+
+// Create{{.DomainTitle}}WorkflowResult represents the result of Create{{.DomainTitle}}Workflow
+type Create{{.DomainTitle}}WorkflowResult struct {
+	{{.DomainTitle}}ID int
+	Success            bool
+	Error              string
+}
+
+// Create{{.DomainTitle}}Workflow creates a {{.DomainLower}} with validation and async processing
+func (w *{{.DomainTitle}}Workflows) Create{{.DomainTitle}}Workflow(ctx workflow.Context, input Create{{.DomainTitle}}WorkflowInput) (*Create{{.DomainTitle}}WorkflowResult, error) {
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Starting Create{{.DomainTitle}}Workflow", "name", input.Name)
+
+	// Set workflow options
+	ao := workflow.ActivityOptions{
+		StartToCloseTimeout: 10 * time.Minute,
+		RetryPolicy: &workflow.RetryPolicy{
+			MaximumAttempts: 3,
+		},
+	}
+	ctx = workflow.WithActivityOptions(ctx, ao)
+
+	// Step 1: Validate input
+	var validationResult bool
+	err := workflow.ExecuteActivity(ctx, w.ValidateCreate{{.DomainTitle}}Input, input).Get(ctx, &validationResult)
+	if err != nil {
+		return &Create{{.DomainTitle}}WorkflowResult{
+			Success: false,
+			Error:   fmt.Sprintf("validation failed: %v", err),
+		}, err
+	}
+
+	// Step 2: Create {{.DomainLower}}
+	var {{.DomainLower}}ID int
+	err = workflow.ExecuteActivity(ctx, w.CreateActivity, input).Get(ctx, &{{.DomainLower}}ID)
+	if err != nil {
+		return &Create{{.DomainTitle}}WorkflowResult{
+			Success: false,
+			Error:   fmt.Sprintf("creation failed: %v", err),
+		}, err
+	}
+
+	// Step 3: Post-creation processing (optional)
+	err = workflow.ExecuteActivity(ctx, w.PostCreate{{.DomainTitle}}Processing, {{.DomainLower}}ID).Get(ctx, nil)
+	if err != nil {
+		logger.Warn("Post-creation processing failed", "error", err)
+		// Don't fail the workflow, just log the error
+	}
+
+	logger.Info("Create{{.DomainTitle}}Workflow completed successfully", "{{.DomainLower}}_id", {{.DomainLower}}ID)
+
+	return &Create{{.DomainTitle}}WorkflowResult{
+		{{.DomainTitle}}ID: {{.DomainLower}}ID,
+		Success:            true,
+	}, nil
+}
+
+// Bulk{{.DomainTitle}}OperationInput represents input for bulk operations
+type Bulk{{.DomainTitle}}OperationInput struct {
+	{{.DomainTitle}}IDs []int
+	Operation           string // "activate", "deactivate", "delete"
+	PerformedBy         int
+}
+
+// Bulk{{.DomainTitle}}OperationResult represents the result of bulk operations
+type Bulk{{.DomainTitle}}OperationResult struct {
+	Succeeded []int
+	Failed    []int
+	Total     int
+}
+
+// Bulk{{.DomainTitle}}OperationWorkflow performs bulk operations on {{.DomainLower}}s
+func (w *{{.DomainTitle}}Workflows) Bulk{{.DomainTitle}}OperationWorkflow(ctx workflow.Context, input Bulk{{.DomainTitle}}OperationInput) (*Bulk{{.DomainTitle}}OperationResult, error) {
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Starting Bulk{{.DomainTitle}}OperationWorkflow", "operation", input.Operation, "count", len(input.{{.DomainTitle}}IDs))
+
+	ao := workflow.ActivityOptions{
+		StartToCloseTimeout: 5 * time.Minute,
+		RetryPolicy: &workflow.RetryPolicy{
+			MaximumAttempts: 2,
+		},
+	}
+	ctx = workflow.WithActivityOptions(ctx, ao)
+
+	result := &Bulk{{.DomainTitle}}OperationResult{
+		Total:     len(input.{{.DomainTitle}}IDs),
+		Succeeded: make([]int, 0),
+		Failed:    make([]int, 0),
+	}
+
+	// Process each {{.DomainLower}} in parallel
+	futures := make([]workflow.Future, len(input.{{.DomainTitle}}IDs))
+	for i, id := range input.{{.DomainTitle}}IDs {
+		futures[i] = workflow.ExecuteActivity(ctx, w.Process{{.DomainTitle}}BulkOperation, id, input.Operation, input.PerformedBy)
+	}
+
+	// Collect results
+	for i, future := range futures {
+		var success bool
+		err := future.Get(ctx, &success)
+		if err != nil || !success {
+			result.Failed = append(result.Failed, input.{{.DomainTitle}}IDs[i])
+		} else {
+			result.Succeeded = append(result.Succeeded, input.{{.DomainTitle}}IDs[i])
+		}
+	}
+
+	logger.Info("Bulk{{.DomainTitle}}OperationWorkflow completed",
+		"succeeded", len(result.Succeeded),
+		"failed", len(result.Failed))
+
+	return result, nil
+}
+
+// {{.DomainTitle}}Activities contains all {{.DomainLower}}-related activities
+type {{.DomainTitle}}Activities struct {
+	service *app.Service
+}
+
+// New{{.DomainTitle}}Activities creates a new activities instance
+func New{{.DomainTitle}}Activities(service *app.Service) *{{.DomainTitle}}Activities {
+	return &{{.DomainTitle}}Activities{
+		service: service,
+	}
+}
+
+// ValidateCreate{{.DomainTitle}}Input validates the input for creating a {{.DomainLower}}
+func (a *{{.DomainTitle}}Activities) ValidateCreate{{.DomainTitle}}Input(ctx context.Context, input Create{{.DomainTitle}}WorkflowInput) (bool, error) {
+	// Add custom validation logic here
+	if input.Name == "" {
+		return false, {{.DomainLower}}.Err{{.DomainTitle}}NameRequired
+	}
+	return true, nil
+}
+
+// CreateActivity creates a {{.DomainLower}}
+func (a *{{.DomainTitle}}Activities) CreateActivity(ctx context.Context, input Create{{.DomainTitle}}WorkflowInput) (int, error) {
+	cmd := app.Create{{.DomainTitle}}Command{
+		Name:        input.Name,
+		Description: input.Description,
+		Active:      input.Active,
+		CreatedBy:   input.CreatedBy,
+	}
+
+	entity, err := a.service.Create{{.DomainTitle}}(ctx, cmd)
+	if err != nil {
+		return 0, err
+	}
+
+	return entity.ID, nil
+}
+
+// PostCreate{{.DomainTitle}}Processing handles post-creation tasks
+func (a *{{.DomainTitle}}Activities) PostCreate{{.DomainTitle}}Processing(ctx context.Context, {{.DomainLower}}ID int) error {
+	// TODO: Add post-creation logic here
+	// Examples:
+	// - Send notifications
+	// - Update search index
+	// - Generate reports
+	// - Trigger integrations
+
+	return nil
+}
+
+// Process{{.DomainTitle}}BulkOperation processes a single {{.DomainLower}} in a bulk operation
+func (a *{{.DomainTitle}}Activities) Process{{.DomainTitle}}BulkOperation(ctx context.Context, {{.DomainLower}}ID int, operation string, performedBy int) (bool, error) {
+	entity, err := a.service.Get{{.DomainTitle}}(ctx, {{.DomainLower}}ID)
+	if err != nil {
+		return false, err
+	}
+
+	switch operation {
+	case "activate":
+		entity.Activate()
+	case "deactivate":
+		entity.Deactivate()
+	case "delete":
+		return true, a.service.Delete{{.DomainTitle}}(ctx, {{.DomainLower}}ID)
+	default:
+		return false, fmt.Errorf("unknown operation: %s", operation)
+	}
+
+	cmd := app.Update{{.DomainTitle}}Command{
+		Name:        entity.Name,
+		Description: entity.Description,
+		UpdatedBy:   performedBy,
+	}
+
+	_, err = a.service.Update{{.DomainTitle}}(ctx, {{.DomainLower}}ID, cmd)
+	return err == nil, err
+}

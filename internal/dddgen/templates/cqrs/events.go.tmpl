@@ -1,0 +1,42 @@
+package cqrs
+
+import (
+	"time"
+)
+
+// {{.DomainTitle}}CreatedEvent represents a {{.DomainLower}} creation event
+type {{.DomainTitle}}CreatedEvent struct {
+	{{.DomainTitle}}ID int       `json:"{{.DomainLower}}_id"`
+	Name       string    `json:"name"`
+	CreatedBy  int       `json:"created_by"`
+	OccurredAt time.Time `json:"occurred_at"`
+}
+
+// {{.DomainTitle}}UpdatedEvent represents a {{.DomainLower}} update event
+type {{.DomainTitle}}UpdatedEvent struct {
+	{{.DomainTitle}}ID int       `json:"{{.DomainLower}}_id"`
+	UpdatedBy  int       `json:"updated_by"`
+	OccurredAt time.Time `json:"occurred_at"`
+}
+
+// {{.DomainTitle}}DeletedEvent represents a {{.DomainLower}} deletion event
+type {{.DomainTitle}}DeletedEvent struct {
+	{{.DomainTitle}}ID int       `json:"{{.DomainLower}}_id"`
+	DeletedBy  int       `json:"deleted_by"`
+	OccurredAt time.Time `json:"occurred_at"`
+}
+
+// {{.DomainTitle}}ActivatedEvent represents a {{.DomainLower}} activation event
+type {{.DomainTitle}}ActivatedEvent struct {
+	{{.DomainTitle}}ID  int       `json:"{{.DomainLower}}_id"`
+	ActivatedBy int       `json:"activated_by"`
+	OccurredAt  time.Time `json:"occurred_at"`
+}
+
+// {{.DomainTitle}}DeactivatedEvent represents a {{.DomainLower}} deactivation event
+type {{.DomainTitle}}DeactivatedEvent struct {
+	{{.DomainTitle}}ID    int       `json:"{{.DomainLower}}_id"`
+	DeactivatedBy int       `json:"deactivated_by"`
+	Reason        string    `json:"reason,omitempty"`
+	OccurredAt    time.Time `json:"occurred_at"`
+}

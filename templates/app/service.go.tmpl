@@ -1,0 +1,119 @@
+package app
+
+import (
+	"context"
+
+	{{.DomainLower}} "ibnb/internal/{{.DomainLower}}"
+)
+
+// Service orchestrates {{.DomainLower}} operations (no business logic here)
+type Service struct {
+	repo {{.DomainLower}}.Repository
+}
+
+// NewService creates a new {{.DomainLower}} service
+func NewService(repo {{.DomainLower}}.Repository) *Service {
+	return &Service{
+		repo: repo,
+	}
+}
+
+// Create{{.DomainTitle}}Command represents create command
+type Create{{.DomainTitle}}Command struct {
+	Name        string
+	Description string
+	Active      bool
+	CreatedBy   int
+}
+
+// Update{{.DomainTitle}}Command represents update command
+type Update{{.DomainTitle}}Command struct {
+	Name        string
+	Description string
+	UpdatedBy   int
+}
+
+// Create{{.DomainTitle}} creates a new {{.DomainLower}}
+func (s *Service) Create{{.DomainTitle}}(ctx context.Context, cmd Create{{.DomainTitle}}Command) (*{{.DomainLower}}.{{.DomainTitle}}, error) {
+	entity := &{{.DomainLower}}.{{.DomainTitle}}{
+		Name:        cmd.Name,
+		Description: cmd.Description,
+		Active:      cmd.Active,
+		CreatedBy:   cmd.CreatedBy,
+	}
+
+	// Domain validates itself
+	if err := entity.Validate(); err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.Create(ctx, entity); err != nil {
+		return nil, err
+	}
+
+	return entity, nil
+}
+
+// Get{{.DomainTitle}} retrieves a {{.DomainLower}} by ID
+func (s *Service) Get{{.DomainTitle}}(ctx context.Context, id int) (*{{.DomainLower}}.{{.DomainTitle}}, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
+// Update{{.DomainTitle}} updates a {{.DomainLower}}
+func (s *Service) Update{{.DomainTitle}}(ctx context.Context, id int, cmd Update{{.DomainTitle}}Command) (*{{.DomainLower}}.{{.DomainTitle}}, error) {
+	entity, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check business rules
+	if err := entity.CanBeModified(); err != nil {
+		return nil, err
+	}
+
+	// Update fields
+	entity.Name = cmd.Name
+	entity.Description = cmd.Description
+	entity.UpdatedBy = cmd.UpdatedBy
+
+	// Domain validates itself
+	if err := entity.Validate(); err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.Update(ctx, entity); err != nil {
+		return nil, err
+	}
+
+	return entity, nil
+}
+
+// Delete{{.DomainTitle}} deletes a {{.DomainLower}}
+func (s *Service) Delete{{.DomainTitle}}(ctx context.Context, id int) error {
+	entity, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// Check business rules
+	if err := entity.CanBeModified(); err != nil {
+		return err
+	}
+
+	return s.repo.Delete(ctx, id)
+}
+
+// List{{.DomainTitle}}s lists {{.DomainLower}}s with pagination
+func (s *Service) List{{.DomainTitle}}s(ctx context.Context, filters {{.DomainLower}}.ListFilters) ([]*{{.DomainLower}}.{{.DomainTitle}}, int, error) {
+	entities, err := s.repo.List(ctx, filters)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	count, err := s.repo.Count(ctx, filters)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return entities, count, nil
+}
