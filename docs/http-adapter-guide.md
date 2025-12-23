@@ -46,6 +46,7 @@ This guide covers the production-ready HTTP adapter template that uses Huma v2 f
 ## Architecture
 
 The adapter is designed to be **middleware-agnostic**. All middleware (CORS, rate limiting, authentication, logging, etc.) should be configured at the application root level to:
+
 - Avoid duplication and conflicts
 - Provide consistent behavior across all APIs
 - Allow centralized middleware management
