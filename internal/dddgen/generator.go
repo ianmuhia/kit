@@ -3,6 +3,7 @@ package dddgen
 import (
 	"embed"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,7 @@ var Templates embed.FS
 type Generator struct {
 	config Config
 	data   TemplateData
+	logger *slog.Logger
 }
 
 // New creates a new Generator instance
@@ -28,13 +30,22 @@ func New(cfg Config) *Generator {
 			DomainTitle: codegen.Capitalize(cfg.DomainName),
 			DomainLower: strings.ToLower(cfg.DomainName),
 		},
+		logger: slog.Default(),
 	}
+}
+
+// WithLogger sets a custom logger
+func (g *Generator) WithLogger(logger *slog.Logger) *Generator {
+	g.logger = logger
+	return g
 }
 
 // Generate creates the domain structure and files
 func (g *Generator) Generate() error {
-	fmt.Printf("\nGenerating domain: %s\n", g.data.DomainTitle)
-	fmt.Println(strings.Repeat("-", 50))
+	g.logger.Info("generating domain",
+		slog.String("domain", g.data.DomainTitle),
+		slog.String("output", g.config.OutputDir),
+	)
 
 	// Create directory structure
 	if err := g.createDirectories(); err != nil {
@@ -64,12 +75,12 @@ func (g *Generator) createDirectories() error {
 		dirs = append(dirs, filepath.Join(basePath, "cqrs"))
 	}
 
-	fmt.Println("\nCreating directories...")
+	g.logger.Info("creating directories", slog.Int("count", len(dirs)))
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
-		fmt.Printf("  [DIR]  %s\n", dir)
+		g.logger.Debug("created directory", slog.String("path", dir))
 	}
 
 	return nil
@@ -78,13 +89,16 @@ func (g *Generator) createDirectories() error {
 func (g *Generator) generateFiles() error {
 	files := g.getFileMapping()
 
-	fmt.Println("\nGenerating files from templates...")
+	g.logger.Info("generating files", slog.Int("count", len(files)))
 	for tmplPath, outputPath := range files {
 		if err := g.generateFile(tmplPath, outputPath); err != nil {
 			return fmt.Errorf("failed to generate %s: %w", outputPath, err)
 		}
 		relPath, _ := filepath.Rel(g.config.OutputDir, outputPath)
-		fmt.Printf("  [FILE] %s\n", relPath)
+		g.logger.Debug("generated file",
+			slog.String("template", tmplPath),
+			slog.String("output", relPath),
+		)
 	}
 
 	return nil
@@ -161,13 +175,22 @@ func (g *Generator) generateFile(tmplPath, outputPath string) error {
 }
 
 func (g *Generator) printSuccess() {
-	fmt.Printf("\n✓ SUCCESS: Generated domain '%s' in %s/%s\n",
-		g.data.DomainLower,
-		g.config.OutputDir,
-		g.data.DomainLower,
+	outputPath := filepath.Join(g.config.OutputDir, g.data.DomainLower)
+
+	g.logger.Info("domain generated successfully",
+		slog.String("domain", g.data.DomainLower),
+		slog.String("path", outputPath),
+		slog.Bool("with_tests", g.config.WithTests),
+		slog.Bool("with_cqrs", g.config.WithCQRS),
+		slog.Bool("with_messaging", g.config.WithMessaging),
+		slog.Bool("with_river", g.config.WithRiver),
+		slog.Bool("with_workflows", g.config.WithWorkflows),
+		slog.Bool("with_decorators", g.config.WithDecorators),
 	)
+
+	fmt.Printf("\n✓ SUCCESS: Generated domain '%s' in %s\n", g.data.DomainLower, outputPath)
 	fmt.Println("\nNext steps:")
-	fmt.Printf("  1. Review generated files in %s/%s\n", g.config.OutputDir, g.data.DomainLower)
+	fmt.Printf("  1. Review generated files in %s\n", outputPath)
 	fmt.Printf("  2. Customize domain entity in %s.go\n", g.data.DomainLower)
 	fmt.Println("  3. Add domain-specific repository methods")
 	fmt.Println("  4. Implement business logic in app/service.go")
