@@ -98,6 +98,16 @@ version: ## Show Go version
 dev-ddd-gen: ## Build and run ddd-gen with example args
 	@go run ./cmd/ddd-gen --domain=example --output=./tmp
 
+test-gen: ## Test the DDD generator with sample domains
+	@./test-ddd-gen.sh
+
+test-gen-quick: ## Quick test: generate a sample domain in ./tmp
+	@echo "Generating sample 'product' domain in ./tmp..."
+	@go run ./cmd/ddd-gen --domain=product --output=./tmp --with-tests
+	@echo ""
+	@echo "✓ Generated in ./tmp/product"
+	@echo "  Review: tmp/product/adapters/product_http.go"
+
 watch: ## Watch for changes and rebuild (requires entr)
 	@echo "Watching for changes..."
 	@find . -name '*.go' | entr -r make build

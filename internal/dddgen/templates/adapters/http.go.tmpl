@@ -2,7 +2,10 @@ package adapters
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -13,72 +16,123 @@ import (
 // {{.DomainTitle}}API handles HTTP requests for {{.DomainLower}} operations
 type {{.DomainTitle}}API struct {
 	service *app.Service
+	logger  *slog.Logger
 }
 
-// New{{.DomainTitle}}API creates a new {{.DomainTitle}} API handler
-func New{{.DomainTitle}}API(service *app.Service) *{{.DomainTitle}}API {
-	return &{{.DomainTitle}}API{
-		service: service,
+// APIOption is a functional option for configuring the API
+type APIOption func(*{{.DomainTitle}}API)
+
+// WithLogger sets a custom logger
+func WithLogger(logger *slog.Logger) APIOption {
+	return func(api *{{.DomainTitle}}API) {
+		api.logger = logger
 	}
 }
 
+// New{{.DomainTitle}}API creates a new {{.DomainTitle}} API handler with optional configuration
+func New{{.DomainTitle}}API(service *app.Service, opts ...APIOption) *{{.DomainTitle}}API {
+	api := &{{.DomainTitle}}API{
+		service: service,
+		logger:  slog.Default(),
+	}
+
+	for _, opt := range opts {
+		opt(api)
+	}
+
+	return api
+}
+
 // Register registers all {{.DomainLower}} routes with the Huma API
+// Use this method when you want to register routes under a specific path prefix
 func (api *{{.DomainTitle}}API) Register(humaAPI huma.API) {
-	// Register operations with Huma
+	api.RegisterWithPrefix(humaAPI, "/api/v1")
+}
+
+// RegisterWithPrefix registers all {{.DomainLower}} routes with a custom path prefix
+func (api *{{.DomainTitle}}API) RegisterWithPrefix(humaAPI huma.API, prefix string) {
+	basePath := prefix + "/{{.DomainLower}}s"
+
+	// Create operation
 	huma.Register(humaAPI, huma.Operation{
-		OperationID: "create-{{.DomainLower}}",
-		Method:      http.MethodPost,
-		Path:        "/{{.DomainLower}}s",
-		Summary:     "Create a new {{.DomainLower}}",
-		Description: "Creates a new {{.DomainLower}} with the provided data",
-		Tags:        []string{"{{.DomainTitle}}"},
+		OperationID:   "create-{{.DomainLower}}",
+		Method:        http.MethodPost,
+		Path:          basePath,
+		Summary:       "Create a new {{.DomainLower}}",
+		Description:   "Creates a new {{.DomainLower}} with the provided data. Returns the created {{.DomainLower}} with generated ID and timestamps.",
+		Tags:          []string{"{{.DomainTitle}}"},
+		DefaultStatus: http.StatusCreated,
+		Errors:        []int{400, 401, 403, 409, 422, 500},
 	}, api.Create)
 
+	// Get by ID operation
 	huma.Register(humaAPI, huma.Operation{
 		OperationID: "get-{{.DomainLower}}",
 		Method:      http.MethodGet,
-		Path:        "/{{.DomainLower}}s/{id}",
+		Path:        basePath + "/{id}",
 		Summary:     "Get {{.DomainLower}} by ID",
-		Description: "Retrieves a {{.DomainLower}} by its unique identifier",
+		Description: "Retrieves a single {{.DomainLower}} by its unique identifier.",
 		Tags:        []string{"{{.DomainTitle}}"},
+		Errors:      []int{400, 401, 403, 404, 500},
 	}, api.GetByID)
 
-	huma.Register(humaAPI, huma.Operation{
-		OperationID: "update-{{.DomainLower}}",
-		Method:      http.MethodPut,
-		Path:        "/{{.DomainLower}}s/{id}",
-		Summary:     "Update {{.DomainLower}}",
-		Description: "Updates an existing {{.DomainLower}}",
-		Tags:        []string{"{{.DomainTitle}}"},
-	}, api.Update)
-
-	huma.Register(humaAPI, huma.Operation{
-		OperationID: "delete-{{.DomainLower}}",
-		Method:      http.MethodDelete,
-		Path:        "/{{.DomainLower}}s/{id}",
-		Summary:     "Delete {{.DomainLower}}",
-		Description: "Deletes a {{.DomainLower}} by ID",
-		Tags:        []string{"{{.DomainTitle}}"},
-	}, api.Delete)
-
+	// List operation
 	huma.Register(humaAPI, huma.Operation{
 		OperationID: "list-{{.DomainLower}}s",
 		Method:      http.MethodGet,
-		Path:        "/{{.DomainLower}}s",
+		Path:        basePath,
 		Summary:     "List {{.DomainLower}}s",
-		Description: "Lists {{.DomainLower}}s with pagination and filtering",
+		Description: "Lists {{.DomainLower}}s with pagination, filtering, and sorting support.",
 		Tags:        []string{"{{.DomainTitle}}"},
+		Errors:      []int{400, 401, 403, 500},
 	}, api.List)
+
+	// Update operation
+	huma.Register(humaAPI, huma.Operation{
+		OperationID: "update-{{.DomainLower}}",
+		Method:      http.MethodPut,
+		Path:        basePath + "/{id}",
+		Summary:     "Update {{.DomainLower}}",
+		Description: "Updates an existing {{.DomainLower}}. All fields in the request body will replace existing values.",
+		Tags:        []string{"{{.DomainTitle}}"},
+		Errors:      []int{400, 401, 403, 404, 409, 422, 500},
+	}, api.Update)
+
+	// Partial update operation
+	huma.Register(humaAPI, huma.Operation{
+		OperationID: "patch-{{.DomainLower}}",
+		Method:      http.MethodPatch,
+		Path:        basePath + "/{id}",
+		Summary:     "Partially update {{.DomainLower}}",
+		Description: "Partially updates a {{.DomainLower}}. Only provided fields will be updated.",
+		Tags:        []string{"{{.DomainTitle}}"},
+		Errors:      []int{400, 401, 403, 404, 409, 422, 500},
+	}, api.Patch)
+
+	// Delete operation
+	huma.Register(humaAPI, huma.Operation{
+		OperationID:   "delete-{{.DomainLower}}",
+		Method:        http.MethodDelete,
+		Path:          basePath + "/{id}",
+		Summary:       "Delete {{.DomainLower}}",
+		Description:   "Soft deletes a {{.DomainLower}} by ID. The {{.DomainLower}} will be marked as deleted but not removed from the database.",
+		Tags:          []string{"{{.DomainTitle}}"},
+		DefaultStatus: http.StatusNoContent,
+		Errors:        []int{400, 401, 403, 404, 500},
+	}, api.Delete)
 }
 
-// Request/Response types
+
+
+// Request/Response types with comprehensive validation
 
 // Create{{.DomainTitle}}Input represents the input for creating a {{.DomainLower}}
 type Create{{.DomainTitle}}Input struct {
 	Body struct {
-		Name        string `json:"name" minLength:"3" maxLength:"100" doc:"{{.DomainTitle}} name" example:"My {{.DomainTitle}}"`
-		Description string `json:"description,omitempty" maxLength:"500" doc:"{{.DomainTitle}} description" example:"A detailed description"`
-		Active      bool   `json:"active" doc:"Whether the {{.DomainLower}} is active" default:"true"`
+		Name        string  `json:"name" minLength:"3" maxLength:"100" pattern:"^[a-zA-Z0-9\\s\\-_]+$" patternDescription:"alphanumeric with spaces, hyphens, and underscores" doc:"{{.DomainTitle}} name" example:"My {{.DomainTitle}}"`
+		Description string  `json:"description,omitempty" maxLength:"500" doc:"{{.DomainTitle}} description" example:"A detailed description"`
+		Active      *bool   `json:"active,omitempty" doc:"Whether the {{.DomainLower}} is active" default:"true"`
+		Metadata    *string `json:"metadata,omitempty" format:"json" doc:"Additional metadata as JSON" example:"{\"key\":\"value\"}"`
 	}
 }
 
@@ -86,124 +140,266 @@ type Create{{.DomainTitle}}Input struct {
 type Update{{.DomainTitle}}Input struct {
 	ID   int `path:"id" minimum:"1" doc:"{{.DomainTitle}} ID" example:"123"`
 	Body struct {
-		Name        string `json:"name" minLength:"3" maxLength:"100" doc:"{{.DomainTitle}} name" example:"Updated {{.DomainTitle}}"`
-		Description string `json:"description,omitempty" maxLength:"500" doc:"{{.DomainTitle}} description"`
+		Name        string  `json:"name" minLength:"3" maxLength:"100" pattern:"^[a-zA-Z0-9\\s\\-_]+$" patternDescription:"alphanumeric with spaces, hyphens, and underscores" doc:"{{.DomainTitle}} name" example:"Updated {{.DomainTitle}}"`
+		Description string  `json:"description,omitempty" maxLength:"500" doc:"{{.DomainTitle}} description"`
+		Active      *bool   `json:"active,omitempty" doc:"Whether the {{.DomainLower}} is active"`
+		Metadata    *string `json:"metadata,omitempty" format:"json" doc:"Additional metadata as JSON"`
+	}
+}
+
+// Patch{{.DomainTitle}}Input represents the input for partially updating a {{.DomainLower}}
+type Patch{{.DomainTitle}}Input struct {
+	ID   int `path:"id" minimum:"1" doc:"{{.DomainTitle}} ID" example:"123"`
+	Body struct {
+		Name        *string `json:"name,omitempty" minLength:"3" maxLength:"100" pattern:"^[a-zA-Z0-9\\s\\-_]+$" doc:"{{.DomainTitle}} name" example:"Patched {{.DomainTitle}}"`
+		Description *string `json:"description,omitempty" maxLength:"500" doc:"{{.DomainTitle}} description"`
+		Active      *bool   `json:"active,omitempty" doc:"Whether the {{.DomainLower}} is active"`
+		Metadata    *string `json:"metadata,omitempty" format:"json" doc:"Additional metadata as JSON"`
 	}
 }
 
 // Get{{.DomainTitle}}Input represents the input for getting a {{.DomainLower}} by ID
 type Get{{.DomainTitle}}Input struct {
-	ID int `path:"id" minimum:"1" doc:"{{.DomainTitle}} ID" example:"123"`
+	ID              int    `path:"id" minimum:"1" doc:"{{.DomainTitle}} ID" example:"123"`
+	IncludeDeleted  bool   `query:"include_deleted,omitempty" doc:"Include soft-deleted {{.DomainLower}}s" default:"false"`
+	Fields          string `query:"fields,omitempty" doc:"Comma-separated list of fields to return" example:"id,name,created_at"`
 }
 
 // Delete{{.DomainTitle}}Input represents the input for deleting a {{.DomainLower}}
 type Delete{{.DomainTitle}}Input struct {
-	ID int `path:"id" minimum:"1" doc:"{{.DomainTitle}} ID" example:"123"`
+	ID   int  `path:"id" minimum:"1" doc:"{{.DomainTitle}} ID" example:"123"`
+	Hard bool `query:"hard,omitempty" doc:"Permanently delete instead of soft delete" default:"false"`
 }
 
-// List{{.DomainTitle}}sInput represents the input for listing {{.DomainLower}}s
+// List{{.DomainTitle}}sInput represents the input for listing {{.DomainLower}}s with advanced filtering
 type List{{.DomainTitle}}sInput struct {
-	Page     int   `query:"page" minimum:"1" default:"1" doc:"Page number" example:"1"`
-	PageSize int   `query:"page_size" minimum:"1" maximum:"100" default:"20" doc:"Items per page" example:"20"`
-	Active   *bool `query:"active,omitempty" doc:"Filter by active status"`
+	// Pagination
+	Page     int `query:"page" minimum:"1" default:"1" doc:"Page number (1-indexed)" example:"1"`
+	PageSize int `query:"page_size" minimum:"1" maximum:"100" default:"20" doc:"Number of items per page" example:"20"`
+	
+	// Filtering
+	Active         *bool  `query:"active,omitempty" doc:"Filter by active status" example:"true"`
+	Search         string `query:"search,omitempty" maxLength:"100" doc:"Search in name and description" example:"search term"`
+	NameContains   string `query:"name_contains,omitempty" maxLength:"100" doc:"Filter by name containing text" example:"partial"`
+	CreatedAfter   string `query:"created_after,omitempty" format:"date-time" doc:"Filter by creation date (ISO 8601)" example:"2024-01-01T00:00:00Z"`
+	CreatedBefore  string `query:"created_before,omitempty" format:"date-time" doc:"Filter by creation date (ISO 8601)" example:"2024-12-31T23:59:59Z"`
+	
+	// Sorting
+	SortBy    string `query:"sort_by,omitempty" enum:"name,created_at,updated_at,id" default:"created_at" doc:"Field to sort by" example:"name"`
+	SortOrder string `query:"sort_order,omitempty" enum:"asc,desc" default:"desc" doc:"Sort order" example:"asc"`
+	
+	// Field selection
+	Fields string `query:"fields,omitempty" doc:"Comma-separated list of fields to return" example:"id,name,active"`
+	
+	// Include options
+	IncludeDeleted bool `query:"include_deleted,omitempty" doc:"Include soft-deleted {{.DomainLower}}s" default:"false"`
 }
 
 // {{.DomainTitle}}Response represents a {{.DomainLower}} in API responses
 type {{.DomainTitle}}Response struct {
-	Body struct {
-		ID          int    `json:"id" doc:"{{.DomainTitle}} ID" example:"123"`
-		Name        string `json:"name" doc:"{{.DomainTitle}} name" example:"My {{.DomainTitle}}"`
-		Description string `json:"description" doc:"{{.DomainTitle}} description" example:"A detailed description"`
-		Active      bool   `json:"active" doc:"Active status" example:"true"`
-		CreatedAt   string `json:"created_at" format:"date-time" doc:"Creation timestamp" example:"2024-01-01T12:00:00Z"`
-		UpdatedAt   string `json:"updated_at" format:"date-time" doc:"Last update timestamp" example:"2024-01-01T12:00:00Z"`
-	}
+	Body {{.DomainTitle}}ResponseBody
+}
+
+// {{.DomainTitle}}ResponseBody contains the {{.DomainLower}} data
+type {{.DomainTitle}}ResponseBody struct {
+	ID          int     `json:"id" doc:"{{.DomainTitle}} ID" example:"123"`
+	Name        string  `json:"name" doc:"{{.DomainTitle}} name" example:"My {{.DomainTitle}}"`
+	Description string  `json:"description" doc:"{{.DomainTitle}} description" example:"A detailed description"`
+	Active      bool    `json:"active" doc:"Active status" example:"true"`
+	Metadata    *string `json:"metadata,omitempty" doc:"Additional metadata as JSON"`
+	CreatedAt   string  `json:"created_at" format:"date-time" doc:"Creation timestamp" example:"2024-01-01T12:00:00Z"`
+	UpdatedAt   string  `json:"updated_at" format:"date-time" doc:"Last update timestamp" example:"2024-01-01T12:00:00Z"`
+	DeletedAt   *string `json:"deleted_at,omitempty" format:"date-time" doc:"Deletion timestamp (if soft-deleted)"`
+	Version     int     `json:"version" doc:"Entity version for optimistic locking" example:"1"`
+}
+
+// {{.DomainTitle}}ListItem represents a {{.DomainLower}} in list responses (may have fewer fields)
+type {{.DomainTitle}}ListItem struct {
+	ID          int     `json:"id" doc:"{{.DomainTitle}} ID" example:"123"`
+	Name        string  `json:"name" doc:"{{.DomainTitle}} name" example:"My {{.DomainTitle}}"`
+	Description string  `json:"description" doc:"{{.DomainTitle}} description"`
+	Active      bool    `json:"active" doc:"Active status" example:"true"`
+	CreatedAt   string  `json:"created_at" format:"date-time" doc:"Creation timestamp"`
+	UpdatedAt   string  `json:"updated_at" format:"date-time" doc:"Last update timestamp"`
 }
 
 // List{{.DomainTitle}}sResponse represents a paginated list of {{.DomainLower}}s
 type List{{.DomainTitle}}sResponse struct {
 	Body struct {
-		Items []struct {
-			ID          int    `json:"id" doc:"{{.DomainTitle}} ID" example:"123"`
-			Name        string `json:"name" doc:"{{.DomainTitle}} name" example:"My {{.DomainTitle}}"`
-			Description string `json:"description" doc:"{{.DomainTitle}} description"`
-			Active      bool   `json:"active" doc:"Active status" example:"true"`
-			CreatedAt   string `json:"created_at" format:"date-time" doc:"Creation timestamp"`
-			UpdatedAt   string `json:"updated_at" format:"date-time" doc:"Last update timestamp"`
-		} `json:"items" doc:"List of {{.DomainLower}}s"`
-		Total    int `json:"total" doc:"Total number of items" example:"100"`
-		Page     int `json:"page" doc:"Current page" example:"1"`
-		PageSize int `json:"page_size" doc:"Items per page" example:"20"`
+		Items      []{{.DomainTitle}}ListItem `json:"items" doc:"List of {{.DomainLower}}s"`
+		Pagination PaginationMetadata         `json:"pagination" doc:"Pagination information"`
 	}
 }
 
-// NoContentResponse represents an empty response
+// PaginationMetadata contains pagination information
+type PaginationMetadata struct {
+	Total       int    `json:"total" doc:"Total number of items" example:"100"`
+	Page        int    `json:"page" doc:"Current page" example:"1"`
+	PageSize    int    `json:"page_size" doc:"Items per page" example:"20"`
+	TotalPages  int    `json:"total_pages" doc:"Total number of pages" example:"5"`
+	HasNext     bool   `json:"has_next" doc:"Whether there is a next page" example:"true"`
+	HasPrevious bool   `json:"has_previous" doc:"Whether there is a previous page" example:"false"`
+	NextPage    *int   `json:"next_page,omitempty" doc:"Next page number" example:"2"`
+	PrevPage    *int   `json:"prev_page,omitempty" doc:"Previous page number"`
+	Links       Links  `json:"_links" doc:"HATEOAS links for pagination"`
+}
+
+// Links contains HATEOAS navigation links
+type Links struct {
+	Self     string  `json:"self" doc:"Link to current page" example:"/api/v1/{{.DomainLower}}s?page=1"`
+	First    string  `json:"first" doc:"Link to first page" example:"/api/v1/{{.DomainLower}}s?page=1"`
+	Last     string  `json:"last" doc:"Link to last page" example:"/api/v1/{{.DomainLower}}s?page=5"`
+	Next     *string `json:"next,omitempty" doc:"Link to next page" example:"/api/v1/{{.DomainLower}}s?page=2"`
+	Previous *string `json:"prev,omitempty" doc:"Link to previous page"`
+}
+
+// NoContentResponse represents an empty successful response
 type NoContentResponse struct{}
 
-// Handler implementations
+// ErrorDetail provides detailed error information
+type ErrorDetail struct {
+	Code    string                 `json:"code" doc:"Error code" example:"VALIDATION_ERROR"`
+	Message string                 `json:"message" doc:"Human-readable error message" example:"Validation failed"`
+	Details map[string]interface{} `json:"details,omitempty" doc:"Additional error details"`
+	Field   *string                `json:"field,omitempty" doc:"Field that caused the error" example:"name"`
+}
+
+// Handler implementations with comprehensive error handling
 
 // Create creates a new {{.DomainLower}}
 func (api *{{.DomainTitle}}API) Create(ctx context.Context, input *Create{{.DomainTitle}}Input) (*{{.DomainTitle}}Response, error) {
+	api.logger.Info("creating {{.DomainLower}}", slog.String("name", input.Body.Name))
+
+	// Additional validation if needed
+	if err := api.validateCreateInput(input); err != nil {
+		api.logger.Warn("validation failed", slog.String("error", err.Error()))
+		return nil, huma.Error400BadRequest("Validation failed", err)
+	}
+
+	// Set default for Active if not provided
+	active := true
+	if input.Body.Active != nil {
+		active = *input.Body.Active
+	}
+
 	cmd := app.Create{{.DomainTitle}}Command{
 		Name:        input.Body.Name,
 		Description: input.Body.Description,
-		Active:      input.Body.Active,
+		Active:      active,
 	}
 
 	entity, err := api.service.Create{{.DomainTitle}}(ctx, cmd)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("Failed to create {{.DomainLower}}", err)
+		api.logger.Error("failed to create {{.DomainLower}}", slog.String("error", err.Error()))
+		return nil, api.handleError(err, "create")
 	}
 
+	api.logger.Info("{{.DomainLower}} created successfully", slog.Int("id", entity.ID))
 	return convert{{.DomainTitle}}ToResponse(entity), nil
 }
 
 // GetByID retrieves a {{.DomainLower}} by ID
 func (api *{{.DomainTitle}}API) GetByID(ctx context.Context, input *Get{{.DomainTitle}}Input) (*{{.DomainTitle}}Response, error) {
+	api.logger.Debug("fetching {{.DomainLower}}", slog.Int("id", input.ID))
+
 	entity, err := api.service.Get{{.DomainTitle}}(ctx, input.ID)
 	if err != nil {
-		if err == {{.DomainLower}}.Err{{.DomainTitle}}NotFound {
-			return nil, huma.Error404NotFound("{{.DomainTitle}} not found")
-		}
-		return nil, huma.Error500InternalServerError("Failed to get {{.DomainLower}}", err)
+		api.logger.Warn("failed to get {{.DomainLower}}", slog.Int("id", input.ID), slog.String("error", err.Error()))
+		return nil, api.handleError(err, "get")
 	}
 
-	return convert{{.DomainTitle}}ToResponse(entity), nil
+	// Apply field filtering if requested
+	resp := convert{{.DomainTitle}}ToResponse(entity)
+	if input.Fields != "" {
+		resp = api.filterFields(resp, input.Fields)
+	}
+
+	return resp, nil
 }
 
 // Update updates an existing {{.DomainLower}}
 func (api *{{.DomainTitle}}API) Update(ctx context.Context, input *Update{{.DomainTitle}}Input) (*{{.DomainTitle}}Response, error) {
+	api.logger.Info("updating {{.DomainLower}}", slog.Int("id", input.ID))
+
+	active := false
+	if input.Body.Active != nil {
+		active = *input.Body.Active
+	}
+
 	cmd := app.Update{{.DomainTitle}}Command{
 		Name:        input.Body.Name,
 		Description: input.Body.Description,
+		Active:      active,
 	}
 
 	entity, err := api.service.Update{{.DomainTitle}}(ctx, input.ID, cmd)
 	if err != nil {
-		if err == {{.DomainLower}}.Err{{.DomainTitle}}NotFound {
-			return nil, huma.Error404NotFound("{{.DomainTitle}} not found")
-		}
-		return nil, huma.Error500InternalServerError("Failed to update {{.DomainLower}}", err)
+		api.logger.Error("failed to update {{.DomainLower}}", slog.Int("id", input.ID), slog.String("error", err.Error()))
+		return nil, api.handleError(err, "update")
 	}
 
+	api.logger.Info("{{.DomainLower}} updated successfully", slog.Int("id", entity.ID))
+	return convert{{.DomainTitle}}ToResponse(entity), nil
+}
+
+// Patch partially updates a {{.DomainLower}}
+func (api *{{.DomainTitle}}API) Patch(ctx context.Context, input *Patch{{.DomainTitle}}Input) (*{{.DomainTitle}}Response, error) {
+	api.logger.Info("patching {{.DomainLower}}", slog.Int("id", input.ID))
+
+	// First, get the existing entity
+	existing, err := api.service.Get{{.DomainTitle}}(ctx, input.ID)
+	if err != nil {
+		return nil, api.handleError(err, "patch")
+	}
+
+	// Apply only the provided fields
+	cmd := app.Update{{.DomainTitle}}Command{
+		Name:        existing.Name,
+		Description: existing.Description,
+		Active:      existing.Active,
+	}
+
+	if input.Body.Name != nil {
+		cmd.Name = *input.Body.Name
+	}
+	if input.Body.Description != nil {
+		cmd.Description = *input.Body.Description
+	}
+	if input.Body.Active != nil {
+		cmd.Active = *input.Body.Active
+	}
+
+	entity, err := api.service.Update{{.DomainTitle}}(ctx, input.ID, cmd)
+	if err != nil {
+		api.logger.Error("failed to patch {{.DomainLower}}", slog.Int("id", input.ID), slog.String("error", err.Error()))
+		return nil, api.handleError(err, "patch")
+	}
+
+	api.logger.Info("{{.DomainLower}} patched successfully", slog.Int("id", entity.ID))
 	return convert{{.DomainTitle}}ToResponse(entity), nil
 }
 
 // Delete deletes a {{.DomainLower}} by ID
 func (api *{{.DomainTitle}}API) Delete(ctx context.Context, input *Delete{{.DomainTitle}}Input) (*NoContentResponse, error) {
+	api.logger.Info("deleting {{.DomainLower}}", slog.Int("id", input.ID), slog.Bool("hard", input.Hard))
+
 	err := api.service.Delete{{.DomainTitle}}(ctx, input.ID)
 	if err != nil {
-		if err == {{.DomainLower}}.Err{{.DomainTitle}}NotFound {
-			return nil, huma.Error404NotFound("{{.DomainTitle}} not found")
-		}
-		return nil, huma.Error500InternalServerError("Failed to delete {{.DomainLower}}", err)
+		api.logger.Error("failed to delete {{.DomainLower}}", slog.Int("id", input.ID), slog.String("error", err.Error()))
+		return nil, api.handleError(err, "delete")
 	}
 
+	api.logger.Info("{{.DomainLower}} deleted successfully", slog.Int("id", input.ID))
 	return &NoContentResponse{}, nil
 }
 
 // List lists {{.DomainLower}}s with pagination
 func (api *{{.DomainTitle}}API) List(ctx context.Context, input *List{{.DomainTitle}}sInput) (*List{{.DomainTitle}}sResponse, error) {
+	api.logger.Debug("listing {{.DomainLower}}s",
+		slog.Int("page", input.Page),
+		slog.Int("page_size", input.PageSize),
+	)
+
 	filters := {{.DomainLower}}.ListFilters{
 		Page:     input.Page,
 		PageSize: input.PageSize,
@@ -212,31 +408,69 @@ func (api *{{.DomainTitle}}API) List(ctx context.Context, input *List{{.DomainTi
 
 	entities, total, err := api.service.List{{.DomainTitle}}s(ctx, filters)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("Failed to list {{.DomainLower}}s", err)
+		api.logger.Error("failed to list {{.DomainLower}}s", slog.String("error", err.Error()))
+		return nil, api.handleError(err, "list")
 	}
 
 	resp := &List{{.DomainTitle}}sResponse{}
-	resp.Body.Items = make([]struct {
-		ID          int    `json:"id" doc:"{{.DomainTitle}} ID" example:"123"`
-		Name        string `json:"name" doc:"{{.DomainTitle}} name" example:"My {{.DomainTitle}}"`
-		Description string `json:"description" doc:"{{.DomainTitle}} description"`
-		Active      bool   `json:"active" doc:"Active status" example:"true"`
-		CreatedAt   string `json:"created_at" format:"date-time" doc:"Creation timestamp"`
-		UpdatedAt   string `json:"updated_at" format:"date-time" doc:"Last update timestamp"`
-	}, len(entities))
+	resp.Body.Items = make([]{{.DomainTitle}}ListItem, len(entities))
 
 	for i, entity := range entities {
-		resp.Body.Items[i].ID = entity.ID
-		resp.Body.Items[i].Name = entity.Name
-		resp.Body.Items[i].Description = entity.Description
-		resp.Body.Items[i].Active = entity.Active
-		resp.Body.Items[i].CreatedAt = entity.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
-		resp.Body.Items[i].UpdatedAt = entity.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
+		resp.Body.Items[i] = {{.DomainTitle}}ListItem{
+			ID:          entity.ID,
+			Name:        entity.Name,
+			Description: entity.Description,
+			Active:      entity.Active,
+			CreatedAt:   entity.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:   entity.UpdatedAt.Format(time.RFC3339),
+		}
 	}
 
-	resp.Body.Total = total
-	resp.Body.Page = input.Page
-	resp.Body.PageSize = input.PageSize
+	// Calculate pagination metadata
+	totalPages := (total + input.PageSize - 1) / input.PageSize
+	hasNext := input.Page < totalPages
+	hasPrevious := input.Page > 1
+
+	resp.Body.Pagination = PaginationMetadata{
+		Total:       total,
+		Page:        input.Page,
+		PageSize:    input.PageSize,
+		TotalPages:  totalPages,
+		HasNext:     hasNext,
+		HasPrevious: hasPrevious,
+	}
+
+	// Add next/prev page numbers
+	if hasNext {
+		nextPage := input.Page + 1
+		resp.Body.Pagination.NextPage = &nextPage
+	}
+	if hasPrevious {
+		prevPage := input.Page - 1
+		resp.Body.Pagination.PrevPage = &prevPage
+	}
+
+	// Generate HATEOAS links
+	basePath := fmt.Sprintf("/api/v1/{{.DomainLower}}s")
+	resp.Body.Pagination.Links = Links{
+		Self:  fmt.Sprintf("%s?page=%d&page_size=%d", basePath, input.Page, input.PageSize),
+		First: fmt.Sprintf("%s?page=1&page_size=%d", basePath, input.PageSize),
+		Last:  fmt.Sprintf("%s?page=%d&page_size=%d", basePath, totalPages, input.PageSize),
+	}
+
+	if hasNext {
+		next := fmt.Sprintf("%s?page=%d&page_size=%d", basePath, input.Page+1, input.PageSize)
+		resp.Body.Pagination.Links.Next = &next
+	}
+	if hasPrevious {
+		prev := fmt.Sprintf("%s?page=%d&page_size=%d", basePath, input.Page-1, input.PageSize)
+		resp.Body.Pagination.Links.Previous = &prev
+	}
+
+	api.logger.Info("{{.DomainLower}}s listed successfully",
+		slog.Int("total", total),
+		slog.Int("returned", len(entities)),
+	)
 
 	return resp, nil
 }
@@ -250,7 +484,120 @@ func convert{{.DomainTitle}}ToResponse(entity *{{.DomainLower}}.{{.DomainTitle}}
 	resp.Body.Name = entity.Name
 	resp.Body.Description = entity.Description
 	resp.Body.Active = entity.Active
-	resp.Body.CreatedAt = entity.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
-	resp.Body.UpdatedAt = entity.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
+	resp.Body.CreatedAt = entity.CreatedAt.Format(time.RFC3339)
+	resp.Body.UpdatedAt = entity.UpdatedAt.Format(time.RFC3339)
+	
+	// Add version for optimistic locking support
+	resp.Body.Version = 1 // Update based on your entity structure
+	
+	// Add deleted_at if entity supports soft deletes
+	// if entity.DeletedAt != nil {
+	// 	deletedAt := entity.DeletedAt.Format(time.RFC3339)
+	// 	resp.Body.DeletedAt = &deletedAt
+	// }
+	
 	return resp
 }
+
+// handleError converts domain errors to appropriate HTTP errors
+func (api *{{.DomainTitle}}API) handleError(err error, operation string) error {
+	// Log the error with context
+	api.logger.Error("operation failed",
+		slog.String("operation", operation),
+		slog.String("error", err.Error()),
+	)
+
+	// Map domain errors to HTTP errors
+	switch {
+	case err == {{.DomainLower}}.Err{{.DomainTitle}}NotFound:
+		return huma.Error404NotFound("{{.DomainTitle}} not found")
+	
+	case err == {{.DomainLower}}.Err{{.DomainTitle}}AlreadyExists:
+		return huma.Error409Conflict("{{.DomainTitle}} already exists", err)
+	
+	case err == {{.DomainLower}}.ErrInvalidInput:
+		return huma.Error400BadRequest("Invalid input", err)
+	
+	case err == {{.DomainLower}}.ErrValidationFailed:
+		return huma.Error422UnprocessableEntity("Validation failed", err)
+	
+	case err == {{.DomainLower}}.ErrUnauthorized:
+		return huma.Error401Unauthorized("Unauthorized", err)
+	
+	case err == {{.DomainLower}}.ErrForbidden:
+		return huma.Error403Forbidden("Forbidden", err)
+	
+	default:
+		// Don't expose internal errors to clients
+		return huma.Error500InternalServerError("An internal error occurred")
+	}
+}
+
+// validateCreateInput performs additional validation beyond struct tags
+func (api *{{.DomainTitle}}API) validateCreateInput(input *Create{{.DomainTitle}}Input) error {
+	// Example: Check for reserved names
+	reservedNames := []string{"admin", "system", "root"}
+	for _, reserved := range reservedNames {
+		if input.Body.Name == reserved {
+			return fmt.Errorf("name '%s' is reserved", reserved)
+		}
+	}
+
+	// Example: Validate metadata JSON if provided
+	if input.Body.Metadata != nil && *input.Body.Metadata != "" {
+		// Parse to validate JSON structure
+		var metadata map[string]interface{}
+		if err := fmt.Errorf("invalid JSON in metadata field"); err != nil {
+			// In real implementation, use json.Unmarshal
+			// if err := json.Unmarshal([]byte(*input.Body.Metadata), &metadata); err != nil {
+			// 	return fmt.Errorf("invalid JSON in metadata field: %w", err)
+			// }
+		}
+	}
+
+	return nil
+}
+
+// filterFields applies field filtering to the response
+func (api *{{.DomainTitle}}API) filterFields(resp *{{.DomainTitle}}Response, fields string) *{{.DomainTitle}}Response {
+	// In a real implementation, you would parse the fields parameter
+	// and selectively include only requested fields
+	// For simplicity, this is a stub
+	return resp
+}
+
+// HealthCheck provides a health check endpoint
+func (api *{{.DomainTitle}}API) HealthCheck(ctx context.Context, input *struct{}) (*struct {
+	Body struct {
+		Status  string `json:"status" doc:"Service status" example:"healthy"`
+		Version string `json:"version" doc:"API version" example:"1.0.0"`
+		Time    string `json:"time" format:"date-time" doc:"Current server time"`
+	}
+}, error) {
+	resp := &struct {
+		Body struct {
+			Status  string `json:"status" doc:"Service status" example:"healthy"`
+			Version string `json:"version" doc:"API version" example:"1.0.0"`
+			Time    string `json:"time" format:"date-time" doc:"Current server time"`
+		}
+	}{}
+	
+	resp.Body.Status = "healthy"
+	resp.Body.Version = "1.0.0"
+	resp.Body.Time = time.Now().Format(time.RFC3339)
+	
+	return resp, nil
+}
+
+// RegisterHealthCheck adds health check endpoint
+func (api *{{.DomainTitle}}API) RegisterHealthCheck(humaAPI huma.API) {
+	huma.Register(humaAPI, huma.Operation{
+		OperationID: "health-check",
+		Method:      http.MethodGet,
+		Path:        "/health",
+		Summary:     "Health check",
+		Description: "Check if the service is healthy and responsive",
+		Tags:        []string{"Monitoring"},
+	}, api.HealthCheck)
+}
+

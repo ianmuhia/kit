@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -17,37 +20,57 @@ import (
 )
 
 // Example of how to wire up your {{.DomainLower}} API with Huma and Chi
+// with middleware configured at the root level
 func main() {
+	// Setup structured logging
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	slog.SetDefault(logger)
+
 	// Create Chi router
 	router := chi.NewMux()
 
-	// Add Chi middleware
+	// Configure middleware at the root level (applies to all routes)
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
+	router.Use(middleware.Compress(5))
+	
+	// Optional: Add CORS middleware
+	router.Use(corsMiddleware([]string{"https://yourdomain.com"}))
+	
+	// Optional: Add timeout middleware
+	router.Use(middleware.Timeout(30 * time.Second))
 
 	// Create Huma API with Chi adapter
 	config := huma.DefaultConfig("{{.DomainTitle}} API", "1.0.0")
+	config.Info.Description = "Production-ready API for {{.DomainLower}} management"
 	config.Servers = []*huma.Server{
-		{URL: "http://localhost:8080"},
+		{URL: "http://localhost:8080", Description: "Local server"},
 	}
 	
 	humaAPI := humachi.New(router, config)
 
 	// Initialize your service layer
 	// NOTE: Replace these with your actual implementations
-	// repo := adapters.NewPostgresRepository(db)
+	// db := connectDatabase()
+	// repo := adapters.NewPostgres{{.DomainTitle}}Repository(db)
 	// service := app.NewService(repo)
 	var service *app.Service // TODO: Initialize with real dependencies
 
 	// Create and register {{.DomainLower}} API
-	{{.DomainLower}}API := adapters.New{{.DomainTitle}}API(service)
+	{{.DomainLower}}API := adapters.New{{.DomainTitle}}API(
+		service,
+		adapters.WithLogger(logger),
+	)
 	{{.DomainLower}}API.Register(humaAPI)
+	{{.DomainLower}}API.RegisterHealthCheck(humaAPI)
 
 	// Start server
 	port := 8080
-	fmt.Printf("Starting server on :%d\n", port)
+	logger.Info("starting server", slog.Int("port", port))
 	fmt.Printf("OpenAPI docs: http://localhost:%d/docs\n", port)
 	fmt.Printf("OpenAPI spec: http://localhost:%d/openapi.json\n", port)
 	
@@ -56,21 +79,98 @@ func main() {
 	}
 }
 
+// corsMiddleware is a simple CORS middleware example
+// In production, consider using github.com/rs/cors
+func corsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			
+			// Check if origin is allowed
+			allowed := false
+			if len(allowedOrigins) == 0 {
+				allowed = true
+			} else {
+				for _, allowedOrigin := range allowedOrigins {
+					if origin == allowedOrigin || allowedOrigin == "*" {
+						allowed = true
+						break
+					}
+				}
+			}
+
+			if allowed && origin != "" {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, X-Request-ID")
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Access-Control-Max-Age", "86400")
+			}
+
+			// Handle preflight
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // Example with API versioning and route groups:
 func exampleWithVersioning() {
 	router := chi.NewMux()
+	
+	// Root level middleware
+	router.Use(middleware.RequestID)
+	router.Use(middleware.Logger)
+	router.Use(middleware.Recoverer)
 
 	// Create v1 API group
 	router.Route("/api/v1", func(r chi.Router) {
 		config := huma.DefaultConfig("{{.DomainTitle}} API", "1.0.0")
-		config.Servers = []*huma.Server{
-			{URL: "http://localhost:8080/api/v1"},
-		}
-		
 		api := humachi.New(r, config)
 		
 		// Register operations
 		var service *app.Service // TODO: Initialize
+		{{.DomainLower}}API := adapters.New{{.DomainTitle}}API(service)
+		{{.DomainLower}}API.RegisterWithPrefix(api, "") // Empty prefix since we're already in /api/v1
+	})
+
+	// Create v2 API group (future)
+	router.Route("/api/v2", func(r chi.Router) {
+		config := huma.DefaultConfig("{{.DomainTitle}} API", "2.0.0")
+		api := humachi.New(r, config)
+		// Register v2 operations
+	})
+
+	http.ListenAndServe(":8080", router)
+}
+
+// Example with custom authentication middleware:
+func exampleWithAuth() {
+	router := chi.NewMux()
+	
+	// Public routes (no auth required)
+	router.Group(func(r chi.Router) {
+		config := huma.DefaultConfig("{{.DomainTitle}} API", "1.0.0")
+		api := humachi.New(r, config)
+		
+		var service *app.Service
+		{{.DomainLower}}API := adapters.New{{.DomainTitle}}API(service)
+		{{.DomainLower}}API.RegisterHealthCheck(api)
+	})
+	
+	// Protected routes (auth required)
+	router.Group(func(r chi.Router) {
+		// Add authentication middleware to this group
+		r.Use(authMiddleware)
+		
+		config := huma.DefaultConfig("{{.DomainTitle}} API", "1.0.0")
+		api := humachi.New(r, config)
+		
+		var service *app.Service
 		{{.DomainLower}}API := adapters.New{{.DomainTitle}}API(service)
 		{{.DomainLower}}API.Register(api)
 	})
@@ -78,24 +178,46 @@ func exampleWithVersioning() {
 	http.ListenAndServe(":8080", router)
 }
 
-// Example with custom middleware:
-func exampleWithCustomMiddleware() {
+// authMiddleware is an example authentication middleware
+func authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Get token from Authorization header
+		token := r.Header.Get("Authorization")
+		if token == "" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Validate token (implement your auth logic here)
+		// userID, err := validateToken(token)
+		// if err != nil {
+		// 	http.Error(w, "Invalid token", http.StatusUnauthorized)
+		// 	return
+		// }
+
+		// Add user info to context
+		ctx := context.WithValue(r.Context(), "user_id", 123)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// Example with rate limiting using github.com/mennanov/limiters
+func exampleWithRateLimiting() {
 	router := chi.NewMux()
 	
-	// Add custom auth middleware
-	router.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Add your auth logic here
-			// e.g., validate JWT, set user context, etc.
-			ctx := context.WithValue(r.Context(), "user_id", 123)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	})
+	// Standard middleware
+	router.Use(middleware.RequestID)
+	router.Use(middleware.Logger)
+	router.Use(middleware.Recoverer)
+	
+	// Rate limiting middleware (basic example)
+	// For production, use Redis-backed rate limiting
+	router.Use(middleware.ThrottleBacklog(100, 1000, 10*time.Second))
 
 	config := huma.DefaultConfig("{{.DomainTitle}} API", "1.0.0")
 	api := humachi.New(router, config)
 	
-	var service *app.Service // TODO: Initialize
+	var service *app.Service
 	{{.DomainLower}}API := adapters.New{{.DomainTitle}}API(service)
 	{{.DomainLower}}API.Register(api)
 
