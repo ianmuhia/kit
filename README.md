@@ -79,7 +79,7 @@ import (
 
 ## Code Generators
 
-### 🏗️ DDD Generator (`ddd-gen`)
+### DDD Generator (`ddd-gen`)
 
 Generate complete Domain-Driven Design modules with hexagonal architecture, CQRS, and event sourcing.
 
@@ -140,11 +140,11 @@ internal/user/
 - **Workflows**: [Temporal](https://temporal.io/) - Durable execution engine
 - **Jobs**: [River](https://riverqueue.com/) - Fast and reliable background jobs
 
-📖 **[Full Documentation →](docs/ddd-generator.md)**
+**[Full Documentation →](docs/ddd-generator.md)**
 
 ---
 
-### 🔐 AuthZ Code Generator (`authz-codegen`)
+### AuthZ Code Generator (`authz-codegen`)
 
 Generate type-safe Go client code from AuthZed schema definitions for SpiceDB/Zanzibar-style permissions.
 
@@ -220,11 +220,11 @@ owners, err := doc.ReadOwnerRelations(ctx)
 - **Schema Parsing**: Custom lexer/parser for `.zed` files
 - **Code Generation**: Template-based with `text/template`
 
-📖 **[AuthZed Documentation](https://authzed.com/docs)**
+**[AuthZed Documentation](https://authzed.com/docs)**
 
 ---
 
-### ⚠️ Error Generator (`error-gen`)
+### Error Generator (`error-gen`)
 
 Generate strongly-typed error types from CUE definitions with consistent codes, messages, and HTTP status mappings.
 
@@ -316,161 +316,7 @@ func (e *AppError) MarshalJSON() ([]byte, error) {
 
 ---
 
-## Reusable Packages
-
-### 📝 Code Generation (`pkg/codegen`)
-
-Utilities for template processing, file operations, and naming conventions used by code generators.
-
-```go
-import "github.com/ianmuhia/kit/pkg/codegen"
-
-// Naming conventions
-codegen.Capitalize("hello")        // "Hello"
-codegen.Uncapitalize("World")      // "world"
-codegen.ToPascalCase("user_name")  // "UserName"
-codegen.ToCamelCase("user_name")   // "userName"
-
-// File operations
-codegen.EnsureDir("/path/to/dir")
-codegen.WriteFile("/path/file.txt", []byte("content"))
-codegen.FileExists("config.yaml")  // bool
-
-// Template utilities
-codegen.ProcessTemplate(templateStr, data)
-```
-
----
-
-### 🔀 Slices (`pkg/slices`)
-
-Type-safe generic slice operations (requires Go 1.18+).
-
-```go
-import "github.com/ianmuhia/kit/pkg/slices"
-
-numbers := []int{1, 2, 3, 4, 5}
-
-// Functional operations
-doubled := slices.Map(numbers, func(n int) int { return n * 2 })
-// [2, 4, 6, 8, 10]
-
-evens := slices.Filter(numbers, func(n int) bool { return n%2 == 0 })
-// [2, 4]
-
-sum := slices.Reduce(numbers, 0, func(acc, n int) int { return acc + n })
-// 15
-
-// Utilities
-slices.Contains(numbers, 3)            // true
-slices.Unique([]int{1, 1, 2, 3})      // [1, 2, 3]
-slices.Chunk(numbers, 2)               // [[1, 2], [3, 4], [5]]
-slices.Reverse(numbers)                // [5, 4, 3, 2, 1]
-slices.Flatten([][]int{{1,2},{3,4}})  // [1, 2, 3, 4]
-
-// Set operations
-slices.Union([]int{1,2}, []int{2,3})       // [1, 2, 3]
-slices.Intersection([]int{1,2}, []int{2,3}) // [2]
-slices.Difference([]int{1,2,3}, []int{2})   // [1, 3]
-```
-
-**Features:**
-
-- Full generic support (works with any type)
-- Functional programming patterns (map, filter, reduce)
-- Common utilities (contains, unique, chunk)
-- Set operations (union, intersection, difference)
-- Zero allocations for most operations
-
----
-
-### 📋 Strings (`pkg/stringutil`)
-
-Comprehensive string manipulation and validation utilities.
-
-```go
-import "github.com/ianmuhia/kit/pkg/stringutil"
-
-// Case conversions
-stringutil.ToPascalCase("hello_world")   // "HelloWorld"
-stringutil.ToCamelCase("hello_world")    // "helloWorld"
-stringutil.ToSnakeCase("HelloWorld")     // "hello_world"
-stringutil.ToKebabCase("HelloWorld")     // "hello-world"
-stringutil.ToTitleCase("hello world")    // "Hello World"
-
-// Validation
-stringutil.IsEmail("test@example.com")   // true
-stringutil.IsURL("https://example.com")  // true
-stringutil.IsEmpty("   ")                // true
-stringutil.IsAlpha("Hello")              // true
-stringutil.IsNumeric("12345")            // true
-stringutil.IsAlphanumeric("Hello123")    // true
-
-// Utilities
-stringutil.Truncate("long text here", 10, "...")  // "long te..."
-stringutil.Reverse("hello")                        // "olleh"
-stringutil.Slugify("Hello World!")                 // "hello-world"
-stringutil.RandomString(16)                        // "aB3dE5fG7hI9jK1l"
-stringutil.Pad("Go", 5, "*", "both")              // "*Go**"
-```
-
-**Features:**
-
-- Multiple case conversion formats
-- Comprehensive validation (email, URL, alpha, numeric)
-- String manipulation (truncate, reverse, slugify)
-- Random string generation
-- Padding and alignment
-
----
-
-### 🌐 HTTP Utilities (`pkg/httputil`)
-
-Production-ready HTTP helpers for responses, errors, and middleware.
-
-```go
-import "github.com/ianmuhia/kit/pkg/httputil"
-
-func Handler(w http.ResponseWriter, r *http.Request) {
-    // Success responses
-    httputil.Success(w, map[string]string{"status": "ok"})
-    httputil.Created(w, user)
-    httputil.NoContent(w)
-    
-    // Error responses
-    httputil.BadRequest(w, "Invalid input")
-    httputil.NotFound(w, "Resource not found")
-    httputil.Unauthorized(w, "Invalid credentials")
-    httputil.Forbidden(w, "Access denied")
-    httputil.InternalServerError(w, "Something went wrong")
-    
-    // Custom errors with proper HTTP status
-    err := httputil.NewHTTPError(422, "VALIDATION_ERROR", "Invalid fields")
-    httputil.WriteError(w, err)
-}
-
-// Middleware
-handler := httputil.LoggingMiddleware(myHandler)
-handler = httputil.RecoveryMiddleware(handler)
-handler = httputil.CORSMiddleware([]string{"https://example.com"})(handler)
-handler = httputil.RateLimitMiddleware(100, time.Minute)(handler)
-
-// Request utilities
-body, err := httputil.ReadJSON(r, &user)
-query := httputil.GetQueryParam(r, "page", "1")
-```
-
-**Features:**
-
-- Consistent JSON response format
-- Standard HTTP error helpers
-- Production-ready middleware (CORS, rate limiting, logging, recovery)
-- Request parsing utilities
-- Integration with standard `net/http`
-
----
-
-### 📨 Messaging (`pkg/messaging`)
+### Messaging (`pkg/messaging`)
 
 High-level NATS publisher and subscriber with Watermill integration, using functional options pattern.
 
@@ -518,7 +364,7 @@ for msg := range messages {
 
 ---
 
-### ⚠️ Error Generation (`pkg/errorgen`)
+### Error Generation (`pkg/errorgen`)
 
 Library for generating typed errors from CUE definitions (used by `error-gen` CLI).
 
@@ -545,7 +391,7 @@ err = gen.Generate()
 
 ---
 
-### 🔐 AuthZ Generation (`pkg/authzgen`)
+### AuthZ Generation (`pkg/authzgen`)
 
 Library for generating AuthZed client code from schema files (used by `authz-codegen` CLI).
 
@@ -572,51 +418,7 @@ err = gen.Generate()
 
 ---
 
-### 🧪 Testing (`pkg/testutil`)
-
-Comprehensive testing utilities and assertions for unit and integration tests.
-
-```go
-import "github.com/ianmuhia/kit/pkg/testutil"
-
-func TestMyHandler(t *testing.T) {
-    // HTTP testing
-    rec := testutil.DoHTTPRequest(t, handler, "GET", "/users", nil)
-    testutil.AssertStatus(t, rec, 200)
-    testutil.AssertJSON(t, rec, expectedResponse)
-    testutil.AssertHeader(t, rec, "Content-Type", "application/json")
-    
-    // JSON assertions
-    var user User
-    testutil.AssertJSONMatch(t, rec.Body.Bytes(), &user)
-    testutil.AssertEqual(t, user.Name, "John Doe")
-    
-    // Fixtures
-    var testUser User
-    testutil.LoadFixture(t, "testdata/user.json", &testUser)
-    
-    // Temporary files (auto-cleanup)
-    dir := testutil.TempDir(t)
-    file := testutil.TempFile(t, "*.txt", "test content")
-    
-    // Database testing
-    db := testutil.SetupTestDB(t, "postgres://...")
-    testutil.TeardownTestDB(t, db)
-}
-```
-
-**Features:**
-
-- HTTP request/response testing
-- JSON comparison and assertions
-- Fixture loading from files
-- Automatic temp file cleanup
-- Database test helpers
-- Custom assertions
-
----
-
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 kit/
@@ -667,7 +469,7 @@ kit/
 
 ---
 
-## 🛠️ Development
+## Development
 
 ### Prerequisites
 
@@ -749,7 +551,7 @@ staticcheck ./...
 
 ---
 
-## 📖 Documentation
+## Documentation
 
 | Document | Description |
 |----------|-------------|
@@ -760,7 +562,7 @@ staticcheck ./...
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! We follow standard GitHub workflow and code quality standards.
 
@@ -802,11 +604,11 @@ When reporting bugs, please include:
 - Expected vs actual behavior
 - Relevant logs or error messages
 
-📖 **Full guide: [CONTRIBUTING.md](docs/contributing.md)**
+**Full guide: [CONTRIBUTING.md](docs/contributing.md)**
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
 ### Current (v1.0)
 
@@ -826,45 +628,9 @@ When reporting bugs, please include:
 - [ ] Saga pattern support
 - [ ] OpenTelemetry integration
 
-### Future (v2.0)
-
-- [ ] CLI framework for building custom generators
-- [ ] Plugin system for extending generators
-- [ ] Web UI for generator configuration
-- [ ] Project templates (monorepo, microservices)
-- [ ] CI/CD pipeline templates
-
 ---
 
-## 📊 Benchmarks
-
-### Slice Operations
-
-```
-BenchmarkMap-8           5000000    245 ns/op      0 B/op    0 allocs/op
-BenchmarkFilter-8        3000000    412 ns/op      0 B/op    0 allocs/op
-BenchmarkReduce-8       10000000    156 ns/op      0 B/op    0 allocs/op
-```
-
-### String Operations
-
-```
-BenchmarkToPascalCase-8  2000000    658 ns/op    128 B/op    3 allocs/op
-BenchmarkToSnakeCase-8   3000000    523 ns/op     96 B/op    2 allocs/op
-BenchmarkSlugify-8       1000000   1024 ns/op    256 B/op    5 allocs/op
-```
-
-### HTTP Utilities
-
-```
-BenchmarkSuccessResponse-8     500000   2345 ns/op   512 B/op   8 allocs/op
-BenchmarkErrorResponse-8       500000   2567 ns/op   544 B/op   9 allocs/op
-BenchmarkMiddlewareChain-8    1000000   1234 ns/op   256 B/op   4 allocs/op
-```
-
----
-
-## 🙏 Acknowledgments
+## Acknowledgments
 
 This toolkit builds on the shoulders of giants:
 
@@ -880,7 +646,7 @@ Special thanks to all [contributors](https://github.com/ianmuhia/kit/graphs/cont
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
@@ -888,7 +654,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ---
 
-## 👤 Author
+## Author
 
 **Ian Muhia**
 
@@ -910,7 +676,7 @@ If this project helps you build better Go applications:
 
 ---
 
-## 📈 Stats
+## Stats
 
 ![GitHub stars](https://img.shields.io/github/stars/Ianmuhia/kit?style=social)
 ![GitHub forks](https://img.shields.io/github/forks/Ianmuhia/kit?style=social)
