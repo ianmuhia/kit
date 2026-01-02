@@ -9,12 +9,7 @@
 
 ## Overview
 
-**Kit** is a comprehensive Go toolkit designed to accelerate development while maintaining code quality and consistency:
-
-- **🏗️ Code Generators**: CLI tools for scaffolding DDD domains, AuthZed permissions, error types, and APIs
-- **📦 Reusable Packages**: Battle-tested utilities for common tasks (slices, strings, HTTP, messaging, testing)
-- **🎯 Best Practices**: Implements clean architecture, CQRS, event-driven patterns, and functional options
-- **⚡ Production-Ready**: Type-safe, well-tested, and designed for real-world applications
+**Kit** A kitchensink repo for some code gen and utility functions i mostly use.
 
 ## Table of Contents
 
