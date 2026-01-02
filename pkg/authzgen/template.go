@@ -31,33 +31,74 @@ var (
 	clientInstance *Client
 	clientOnce     sync.Once
 	clientErr      error
-	clientConfig   ClientConfig
+	clientConfig   *clientOptions
 )
 
-// ClientConfig holds the configuration for the AuthZed client
-type ClientConfig struct {
-	Endpoint string
-	Token    string
-	Port    string
+// clientOptions holds the configuration for the AuthZed client
+type clientOptions struct {
+	endpoint string
+	token    string
+	port     string
+	insecure bool
 }
 
-// SetClientConfig sets the global client configuration
-func SetClientConfig(endpoint, port, token string ) {
-	clientConfig = ClientConfig{
-		Endpoint: endpoint,
-		Token:    token,
-		Port: 	port,
+// ClientOption is a functional option for configuring the AuthZed client
+type ClientOption func(*clientOptions)
+
+// WithEndpoint sets the AuthZed endpoint
+func WithEndpoint(endpoint string) ClientOption {
+	return func(o *clientOptions) {
+		o.endpoint = endpoint
 	}
+}
+
+// WithPort sets the AuthZed port
+func WithPort(port string) ClientOption {
+	return func(o *clientOptions) {
+		o.port = port
+	}
+}
+
+// WithToken sets the AuthZed authentication token
+func WithToken(token string) ClientOption {
+	return func(o *clientOptions) {
+		o.token = token
+	}
+}
+
+// WithInsecure enables insecure connection (for development only)
+func WithInsecure(insecure bool) ClientOption {
+	return func(o *clientOptions) {
+		o.insecure = insecure
+	}
+}
+
+// SetupClient configures the global client with the provided options
+func SetupClient(opts ...ClientOption) {
+	config := &clientOptions{
+		port:     "50051",
+		insecure: true,
+	}
+	
+	for _, opt := range opts {
+		opt(config)
+	}
+	
+	clientConfig = config
 }
 
 // GetClient returns a singleton AuthZed client instance using the global config
 func GetClient() (*Client, error) {
-	if clientConfig.Endpoint == "" || clientConfig.Token == "" {
-		return nil, fmt.Errorf("client not configured - call SetClientConfig first")
+	if clientConfig == nil {
+		return nil, fmt.Errorf("client not configured - call SetupClient first")
+	}
+	
+	if clientConfig.endpoint == "" || clientConfig.token == "" {
+		return nil, fmt.Errorf("endpoint and token are required - use WithEndpoint() and WithToken()")
 	}
 
 	clientOnce.Do(func() {
-		client, err := NewClient(clientConfig.Endpoint,clientConfig.Port, clientConfig.Token)
+		client, err := newClient(clientConfig)
 		if err != nil {
 			clientErr = err
 			return
@@ -67,12 +108,37 @@ func GetClient() (*Client, error) {
 	return clientInstance, clientErr
 }
 
-// NewClient creates a new client instance (use GetClient for singleton)
-func NewClient(endpoint string, port, token string) (*Client, error) {
+// NewClient creates a new client instance with the provided options (not singleton)
+func NewClient(opts ...ClientOption) (*Client, error) {
+	config := &clientOptions{
+		port:     "50051",
+		insecure: true,
+	}
+	
+	for _, opt := range opts {
+		opt(config)
+	}
+	
+	if config.endpoint == "" || config.token == "" {
+		return nil, fmt.Errorf("endpoint and token are required")
+	}
+	
+	return newClient(config)
+}
+
+// newClient is the internal client constructor
+func newClient(config *clientOptions) (*Client, error) {
+	var dialOpts []grpc.DialOption
+	
+	if config.insecure {
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
+	
+	dialOpts = append(dialOpts, grpcutil.WithInsecureBearerToken(config.token))
+	
 	client, err := authzed.NewClientWithExperimentalAPIs(
-		fmt.Sprintf("%v:%v", endpoint, port),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpcutil.WithInsecureBearerToken(token),
+		fmt.Sprintf("%s:%s", config.endpoint, config.port),
+		dialOpts...,
 	)
 	if err != nil {
 		return nil, err
