@@ -4,6 +4,7 @@ package dddgen
 type Config struct {
 	DomainName     string
 	OutputDir      string
+	ModulePath     string // The Go module path (e.g., "github.com/user/project" or "ibnb")
 	WithTests      bool
 	WithMessaging  bool
 	WithRiver      bool
@@ -16,4 +17,5 @@ type Config struct {
 type TemplateData struct {
 	DomainTitle string // Capitalized for type names
 	DomainLower string // Lowercase for package/file names
+	ModulePath  string // The Go module path for imports
 }

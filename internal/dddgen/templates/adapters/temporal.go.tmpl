@@ -10,8 +10,8 @@ import (
 	"go.temporal.io/sdk/worker"
 	"go.temporal.io/sdk/workflow"
 
-	"ibnb/internal/{{.DomainLower}}/app"
-	{{.DomainLower}} "ibnb/internal/{{.DomainLower}}"
+	"{{.ModulePath}}/internal/{{.DomainLower}}/app"
+	{{.DomainLower}} "{{.ModulePath}}/internal/{{.DomainLower}}"
 )
 
 // TemporalAdapter exposes {{.DomainLower}} operations as Temporal activities and workflows

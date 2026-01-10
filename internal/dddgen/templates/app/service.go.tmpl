@@ -2,19 +2,29 @@ package app
 
 import (
 	"context"
+	"time"
 
-	{{.DomainLower}} "ibnb/internal/{{.DomainLower}}"
+	{{.DomainLower}} "{{.ModulePath}}/internal/{{.DomainLower}}"
 )
+
+// {{.DomainTitle}}Publisher defines the interface for publishing {{.DomainLower}} events
+type {{.DomainTitle}}Publisher interface {
+	Publish{{.DomainTitle}}Created(ctx context.Context, event {{.DomainLower}}.{{.DomainTitle}}CreatedEvent) error
+	Publish{{.DomainTitle}}Updated(ctx context.Context, event {{.DomainLower}}.{{.DomainTitle}}UpdatedEvent) error
+	Publish{{.DomainTitle}}Deleted(ctx context.Context, event {{.DomainLower}}.{{.DomainTitle}}DeletedEvent) error
+}
 
 // Service orchestrates {{.DomainLower}} operations (no business logic here)
 type Service struct {
-	repo {{.DomainLower}}.Repository
+	repo      {{.DomainLower}}.Repository
+	publisher {{.DomainTitle}}Publisher
 }
 
 // NewService creates a new {{.DomainLower}} service
-func NewService(repo {{.DomainLower}}.Repository) *Service {
+func NewService(repo {{.DomainLower}}.Repository, publisher {{.DomainTitle}}Publisher) *Service {
 	return &Service{
-		repo: repo,
+		repo:      repo,
+		publisher: publisher,
 	}
 }
 
@@ -51,6 +61,21 @@ func (s *Service) Create{{.DomainTitle}}(ctx context.Context, cmd Create{{.Domai
 		return nil, err
 	}
 
+	// Publish created event
+	if s.publisher != nil {
+		event := {{.DomainLower}}.{{.DomainTitle}}CreatedEvent{
+			{{.DomainTitle}}ID: entity.ID,
+			Name:               entity.Name,
+			CreatedBy:          entity.CreatedBy,
+			CreatedAt:          time.Now(),
+		}
+		if err := s.publisher.Publish{{.DomainTitle}}Created(ctx, event); err != nil {
+			// Log error but don't fail the operation
+			// In production, consider using a proper logger
+			_ = err
+		}
+	}
+
 	return entity, nil
 }
 
@@ -85,11 +110,24 @@ func (s *Service) Update{{.DomainTitle}}(ctx context.Context, id int, cmd Update
 		return nil, err
 	}
 
+	// Publish updated event
+	if s.publisher != nil {
+		event := {{.DomainLower}}.{{.DomainTitle}}UpdatedEvent{
+			{{.DomainTitle}}ID: entity.ID,
+			UpdatedBy:          entity.UpdatedBy,
+			UpdatedAt:          time.Now(),
+		}
+		if err := s.publisher.Publish{{.DomainTitle}}Updated(ctx, event); err != nil {
+			// Log error but don't fail the operation
+			_ = err
+		}
+	}
+
 	return entity, nil
 }
 
 // Delete{{.DomainTitle}} deletes a {{.DomainLower}}
-func (s *Service) Delete{{.DomainTitle}}(ctx context.Context, id int) error {
+func (s *Service) Delete{{.DomainTitle}}(ctx context.Context, id int, deletedBy int) error {
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return err
@@ -100,7 +138,24 @@ func (s *Service) Delete{{.DomainTitle}}(ctx context.Context, id int) error {
 		return err
 	}
 
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+
+	// Publish deleted event
+	if s.publisher != nil {
+		event := {{.DomainLower}}.{{.DomainTitle}}DeletedEvent{
+			{{.DomainTitle}}ID: id,
+			DeletedBy:          deletedBy,
+			DeletedAt:          time.Now(),
+		}
+		if err := s.publisher.Publish{{.DomainTitle}}Deleted(ctx, event); err != nil {
+			// Log error but don't fail the operation
+			_ = err
+		}
+	}
+
+	return nil
 }
 
 // List{{.DomainTitle}}s lists {{.DomainLower}}s with pagination
@@ -116,4 +171,20 @@ func (s *Service) List{{.DomainTitle}}s(ctx context.Context, filters {{.DomainLo
 	}
 
 	return entities, count, nil
+}
+
+// NoOp{{.DomainTitle}}Publisher is a no-op implementation of {{.DomainTitle}}Publisher
+// Use this when messaging is not enabled
+type NoOp{{.DomainTitle}}Publisher struct{}
+
+func (p *NoOp{{.DomainTitle}}Publisher) Publish{{.DomainTitle}}Created(ctx context.Context, event {{.DomainLower}}.{{.DomainTitle}}CreatedEvent) error {
+	return nil
+}
+
+func (p *NoOp{{.DomainTitle}}Publisher) Publish{{.DomainTitle}}Updated(ctx context.Context, event {{.DomainLower}}.{{.DomainTitle}}UpdatedEvent) error {
+	return nil
+}
+
+func (p *NoOp{{.DomainTitle}}Publisher) Publish{{.DomainTitle}}Deleted(ctx context.Context, event {{.DomainLower}}.{{.DomainTitle}}DeletedEvent) error {
+	return nil
 }

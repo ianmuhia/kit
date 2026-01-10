@@ -24,11 +24,18 @@ type Generator struct {
 
 // New creates a new Generator instance
 func New(cfg Config) *Generator {
+	// Default to "ibnb" if no module path is provided
+	modulePath := cfg.ModulePath
+	if modulePath == "" {
+		modulePath = "ibnb"
+	}
+
 	return &Generator{
 		config: cfg,
 		data: TemplateData{
 			DomainTitle: codegen.Capitalize(cfg.DomainName),
 			DomainLower: strings.ToLower(cfg.DomainName),
+			ModulePath:  modulePath,
 		},
 		logger: slog.Default(),
 	}
