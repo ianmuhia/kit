@@ -12,9 +12,9 @@ import (
 type EventType string
 
 const (
-	Event{{.DomainTitle}}Created EventType = "{{.DomainLower}}.created"
-	Event{{.DomainTitle}}Updated EventType = "{{.DomainLower}}.updated"
-	Event{{.DomainTitle}}Deleted EventType = "{{.DomainLower}}.deleted"
+	Event{{.DomainTitle}}Created EventType = "{{.DomainLower}}-created"
+	Event{{.DomainTitle}}Updated EventType = "{{.DomainLower}}-updated"
+	Event{{.DomainTitle}}Deleted EventType = "{{.DomainLower}}-deleted"
 )
 
 // {{.DomainTitle}}CreatedEvent published when {{.DomainLower}} is created
@@ -33,6 +33,15 @@ func (e {{.DomainTitle}}CreatedEvent) ToMessage() (*message.Message, error) {
 	return message.NewMessage(watermill.NewUUID(), payload), nil
 }
 
+// {{.DomainTitle}}CreatedEventFromMessage parses a {{.DomainTitle}}CreatedEvent from a message
+func {{.DomainTitle}}CreatedEventFromMessage(msg *message.Message) (*{{.DomainTitle}}CreatedEvent, error) {
+	var event {{.DomainTitle}}CreatedEvent
+	if err := json.Unmarshal(msg.Payload, &event); err != nil {
+		return nil, err
+	}
+	return &event, nil
+}
+
 // {{.DomainTitle}}UpdatedEvent published when {{.DomainLower}} is updated
 type {{.DomainTitle}}UpdatedEvent struct {
 	{{.DomainTitle}}ID int       `json:"{{.DomainLower}}_id"`
@@ -48,6 +57,15 @@ func (e {{.DomainTitle}}UpdatedEvent) ToMessage() (*message.Message, error) {
 	return message.NewMessage(watermill.NewUUID(), payload), nil
 }
 
+// {{.DomainTitle}}UpdatedEventFromMessage parses a {{.DomainTitle}}UpdatedEvent from a message
+func {{.DomainTitle}}UpdatedEventFromMessage(msg *message.Message) (*{{.DomainTitle}}UpdatedEvent, error) {
+	var event {{.DomainTitle}}UpdatedEvent
+	if err := json.Unmarshal(msg.Payload, &event); err != nil {
+		return nil, err
+	}
+	return &event, nil
+}
+
 // {{.DomainTitle}}DeletedEvent published when {{.DomainLower}} is deleted
 type {{.DomainTitle}}DeletedEvent struct {
 	{{.DomainTitle}}ID int       `json:"{{.DomainLower}}_id"`
@@ -61,4 +79,13 @@ func (e {{.DomainTitle}}DeletedEvent) ToMessage() (*message.Message, error) {
 		return nil, err
 	}
 	return message.NewMessage(watermill.NewUUID(), payload), nil
+}
+
+// {{.DomainTitle}}DeletedEventFromMessage parses a {{.DomainTitle}}DeletedEvent from a message
+func {{.DomainTitle}}DeletedEventFromMessage(msg *message.Message) (*{{.DomainTitle}}DeletedEvent, error) {
+	var event {{.DomainTitle}}DeletedEvent
+	if err := json.Unmarshal(msg.Payload, &event); err != nil {
+		return nil, err
+	}
+	return &event, nil
 }

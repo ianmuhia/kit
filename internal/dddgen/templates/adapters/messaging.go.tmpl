@@ -87,8 +87,6 @@ func (s *{{.DomainTitle}}MessageSubscriber) Handle{{.DomainTitle}}Created(msg *m
 	// - Update search index
 	// - Trigger workflows
 	// - Update analytics
-
-	msg.Ack()
 	return nil
 }
 
@@ -100,8 +98,6 @@ func (s *{{.DomainTitle}}MessageSubscriber) Handle{{.DomainTitle}}Updated(msg *m
 	}
 
 	// TODO: Implement your business logic here
-
-	msg.Ack()
 	return nil
 }
 
@@ -113,8 +109,6 @@ func (s *{{.DomainTitle}}MessageSubscriber) Handle{{.DomainTitle}}Deleted(msg *m
 	}
 
 	// TODO: Implement your business logic here
-
-	msg.Ack()
 	return nil
 }
 
