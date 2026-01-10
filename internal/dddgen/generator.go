@@ -145,10 +145,6 @@ func (g *Generator) getFileMapping() map[string]string {
 	if g.config.WithWorkflows {
 		files["templates/adapters/temporal.go.tmpl"] = filepath.Join(basePath, "adapters", g.data.DomainLower+"_temporal.go")
 	}
-	if g.config.WithDecorators {
-		files["templates/app/decorators.go.tmpl"] = filepath.Join(basePath, "app", "decorators.go")
-		files["templates/app/wiring_example.go.tmpl"] = filepath.Join(basePath, "app", "wiring_example.go")
-	}
 
 	return files
 }
