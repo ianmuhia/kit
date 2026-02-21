@@ -2,6 +2,8 @@ package domain
 
 import (
 	"time"
+
+	"github.com/jellydator/validation"
 )
 
 // {{.DomainTitle}} represents a {{.DomainLower}} entity (aggregate root)
@@ -27,11 +29,10 @@ const (
 
 // Validate checks if {{.DomainLower}} is valid
 func (e *{{.DomainTitle}}) Validate() error {
-	if e.Name == "" {
-		return Err{{.DomainTitle}}NameRequired
-	}
-	// Add more validation rules
-	return nil
+	return validation.ValidateStruct(e,
+		validation.Field(&e.Name, NameRule...),
+		validation.Field(&e.Description, DescriptionRule...),
+	)
 }
 
 // IsActive checks if {{.DomainLower}} is active

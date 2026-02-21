@@ -1,31 +1,44 @@
 package domain
 
 import (
-	"errors"
 	"regexp"
-	"strings"
+
+	"github.com/jellydator/validation"
+)
+
+// Validation rules for reuse across the domain
+var (
+	// NameRule validates name fields with common constraints
+	NameRule = []validation.Rule{
+		validation.Required.Error("name is required"),
+		validation.Length(3, 100).Error("name must be between 3 and 100 characters"),
+	}
+
+	// DescriptionRule validates description fields
+	DescriptionRule = []validation.Rule{
+		validation.Length(0, 500).Error("description must not exceed 500 characters"),
+	}
+
+	// SlugRule validates slug format (lowercase alphanumeric with hyphens)
+	SlugRule = []validation.Rule{
+		validation.Match(regexp.MustCompile(`^[a-z0-9-]+$`)).Error("slug must contain only lowercase letters, numbers, and hyphens"),
+	}
 )
 
 // ValidateName validates {{.DomainLower}} name
 func ValidateName(name string) error {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return Err{{.DomainTitle}}NameRequired
-	}
-	if len(name) < 3 || len(name) > 100 {
-		return errors.New("{{.DomainLower}} name must be between 3 and 100 characters")
-	}
-	return nil
+	return validation.Validate(name, NameRule...)
+}
+
+// ValidateDescription validates {{.DomainLower}} description
+func ValidateDescription(description string) error {
+	return validation.Validate(description, DescriptionRule...)
 }
 
 // ValidateSlug validates slug format
 func ValidateSlug(slug string) error {
 	if slug == "" {
-		return nil // Optional
+		return nil // Slug is optional
 	}
-	slugPattern := regexp.MustCompile(`^[a-z0-9-]+$`)
-	if !slugPattern.MatchString(slug) {
-		return errors.New("invalid slug format")
-	}
-	return nil
+	return validation.Validate(slug, SlugRule...)
 }
