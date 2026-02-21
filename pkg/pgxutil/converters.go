@@ -570,3 +570,15 @@ func PgNumericToFloat64(n pgtype.Numeric) float64 {
 	f, _ := n.Float64Value()
 	return f.Float64
 }
+
+// PgUUIDToUUIDPtr converts a pgtype.UUID to a *uuid.UUID, returning nil for NULL values.
+//
+// Example:
+//   var pgUUID pgtype.UUID
+//   var uuidPtr *uuid.UUID = PgUUIDToUUIDPtr(pgUUID)
+func PgUUIDToUUIDPtr(pgUUID pgtype.UUID) *uuid.UUID {
+    if !pgUUID.Valid {
+        return nil
+    }
+    return uuidPtr(pgUUID.UUID)
+}
