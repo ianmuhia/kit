@@ -582,3 +582,11 @@ func PgUUIDToUUIDPtr(pgUUID pgtype.UUID) *uuid.UUID {
     }
     return uuidPtr(pgUUID.UUID)
 }
+
+// UUIDToPgUUIDPtr converts a *uuid.UUID pointer to pgtype.UUID. If the pointer is nil, it returns a pgtype.UUID with Valid=false.
+func UUIDToPgUUIDPtr(u *uuid.UUID) pgtype.UUID {
+    if u == nil {
+        return pgtype.UUID{Valid: false}
+    }
+    return pgtype.UUID{Bytes: u[:], Valid: true}
+}
