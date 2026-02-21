@@ -456,6 +456,7 @@ func PgxBoolToBool(val pgtype.Bool) bool {
 func PgxTimestamptzToTime(t pgtype.Timestamptz) time.Time {
 	return ToValue(t.Valid, t.Time)
 }
+
 // PgxTimestamptzToTimePtr converts pgtype.Timestamptz to *time.Time, returning nil for NULL values.
 // This is useful when working with nullable TIMESTAMP columns in PostgreSQL.
 //
@@ -571,22 +572,35 @@ func PgNumericToFloat64(n pgtype.Numeric) float64 {
 	return f.Float64
 }
 
-// PgUUIDToUUIDPtr converts a pgtype.UUID to a *uuid.UUID, returning nil for NULL values.
+// UUIDToPgUUIDPtr converts a *uuid.UUID to pgtype.UUID.
+// This is useful when inserting/updating nullable UUID columns in PostgreSQL.
 //
 // Example:
-//   var pgUUID pgtype.UUID
-//   var uuidPtr *uuid.UUID = PgUUIDToUUIDPtr(pgUUID)
-func PgUUIDToUUIDPtr(pgUUID pgtype.UUID) *uuid.UUID {
-    if !pgUUID.Valid {
-        return nil
-    }
-    return uuidPtr(pgUUID.UUID)
+//
+//	var id *uuid.UUID = nil
+//	params := db.CreateUserParams{
+//		ID: pgxutil.UUIDToPgUUIDPtr(id),
+//	}
+func UUIDToPgUUIDPtr(id *uuid.UUID) pgtype.UUID {
+	if id == nil {
+		return pgtype.UUID{Valid: false}
+	}
+	return pgtype.UUID{Bytes: *id, Valid: true}
 }
 
-// UUIDToPgUUIDPtr converts a *uuid.UUID pointer to pgtype.UUID. If the pointer is nil, it returns a pgtype.UUID with Valid=false.
-func UUIDToPgUUIDPtr(u *uuid.UUID) pgtype.UUID {
-    if u == nil {
-        return pgtype.UUID{Valid: false}
-    }
-    return pgtype.UUID{Bytes: u[:], Valid: true}
+// PgUUIDToUUIDPtr converts pgtype.UUID to *uuid.UUID, returning nil for NULL values.
+// This is useful when reading nullable UUID columns from PostgreSQL.
+//
+// Example:
+//
+//	userID := pgxutil.PgUUIDToUUIDPtr(row.UserID)
+//	if userID != nil {
+//		fmt.Println(*userID)
+//	}
+//
+// Note: You can also use the generic ToPointer function with explicit conversion:
+//
+//	userID := pgxutil.ToPointer(row.UserID.Valid, uuid.UUID(row.UserID.Bytes))
+func PgUUIDToUUIDPtr(pgUUID pgtype.UUID) *uuid.UUID {
+	return ToPointer(pgUUID.Valid, uuid.UUID(pgUUID.Bytes))
 }
