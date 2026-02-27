@@ -116,7 +116,8 @@ func WithSubscriberReconnectHandler(handler func(*nc.Conn)) SubscriberOption {
 	}
 }
 
-// defaultSubscriberConfig returns sensible defaults.
+// defaultSubscriberConfig returns sensible defaults. Disconnect/reconnect handlers
+// are set to nil and applied after options so they use the configured logger.
 func defaultSubscriberConfig() *SubscriberConfig {
 	return &SubscriberConfig{
 		url:           "nats://localhost:4222",
@@ -126,14 +127,6 @@ func defaultSubscriberConfig() *SubscriberConfig {
 		unmarshaler:   &nats.GobMarshaler{},
 		autoProvision: true,
 		maxReconnects: -1,
-		disconnectHandler: func(conn *nc.Conn, err error) {
-			if err != nil {
-				slog.Error("NATS subscriber disconnected", "error", err)
-			}
-		},
-		reconnectHandler: func(conn *nc.Conn) {
-			slog.Info("NATS subscriber reconnected", "url", conn.ConnectedUrl())
-		},
 	}
 }
 
@@ -141,9 +134,25 @@ func defaultSubscriberConfig() *SubscriberConfig {
 func NewSubscriber(opts ...SubscriberOption) (message.Subscriber, error) {
 	config := defaultSubscriberConfig()
 
-	// Apply all options
+	// Apply all options first so the configured logger is available to default handlers.
 	for _, opt := range opts {
 		opt(config)
+	}
+
+	// Set default handlers using the configured logger.
+	if config.disconnectHandler == nil {
+		logger := config.logger
+		config.disconnectHandler = func(_ *nc.Conn, err error) {
+			if err != nil {
+				logger.Error("NATS subscriber disconnected", "error", err)
+			}
+		}
+	}
+	if config.reconnectHandler == nil {
+		logger := config.logger
+		config.reconnectHandler = func(conn *nc.Conn) {
+			logger.Info("NATS subscriber reconnected", "url", conn.ConnectedUrl())
+		}
 	}
 
 	if config.url == "" {

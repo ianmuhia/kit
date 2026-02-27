@@ -30,6 +30,12 @@ func main() {
 				Usage:   "Output directory for generated code",
 				Value:   "./internal",
 			},
+			&cli.StringFlag{
+				Name:     "module",
+				Aliases:  []string{"mod"},
+				Usage:    "Go module path (e.g. github.com/user/project)",
+				Required: true,
+			},
 			&cli.BoolFlag{
 				Name:    "with-tests",
 				Aliases: []string{"t"},
@@ -68,6 +74,7 @@ func main() {
 			cfg := dddgen.Config{
 				DomainName:     cmd.String("domain"),
 				OutputDir:      cmd.String("output"),
+				ModulePath:     cmd.String("module"),
 				WithTests:      cmd.Bool("with-tests") || cmd.Bool("all"),
 				WithMessaging:  cmd.Bool("with-messaging") || cmd.Bool("all"),
 				WithRiver:      cmd.Bool("with-river") || cmd.Bool("all"),
@@ -76,7 +83,10 @@ func main() {
 				WithDecorators: cmd.Bool("with-decorators") || cmd.Bool("all"),
 			}
 
-			generator := dddgen.New(cfg)
+			generator, err := dddgen.New(cfg)
+			if err != nil {
+				return err
+			}
 			return generator.Generate()
 		},
 	}

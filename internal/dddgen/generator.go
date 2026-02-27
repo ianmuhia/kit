@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+	"unicode"
 
 	"github.com/ianmuhia/kit/pkg/codegen"
 )
@@ -22,23 +23,51 @@ type Generator struct {
 	logger *slog.Logger
 }
 
-// New creates a new Generator instance
-func New(cfg Config) *Generator {
-	// Default to "ibnb" if no module path is provided
+// New creates a new Generator instance. Returns an error if the domain name
+// is not a valid Go identifier or if the output directory already contains
+// a domain with that name.
+func New(cfg Config) (*Generator, error) {
+	if err := validateDomainName(cfg.DomainName); err != nil {
+		return nil, err
+	}
+
 	modulePath := cfg.ModulePath
 	if modulePath == "" {
-		modulePath = "ibnb"
+		return nil, fmt.Errorf("module path is required (e.g. github.com/user/project)")
+	}
+
+	domainLower := strings.ToLower(cfg.DomainName)
+	domainDir := filepath.Join(cfg.OutputDir, domainLower)
+	if _, err := os.Stat(domainDir); err == nil {
+		return nil, fmt.Errorf("domain %q already exists at %s; delete it first or choose a different name", domainLower, domainDir)
 	}
 
 	return &Generator{
 		config: cfg,
 		data: TemplateData{
 			DomainTitle: codegen.Capitalize(cfg.DomainName),
-			DomainLower: strings.ToLower(cfg.DomainName),
+			DomainLower: domainLower,
 			ModulePath:  modulePath,
 		},
 		logger: slog.Default(),
+	}, nil
+}
+
+// validateDomainName ensures the name is a valid Go identifier (letters and digits,
+// starting with a letter).
+func validateDomainName(name string) error {
+	if name == "" {
+		return fmt.Errorf("domain name is required")
 	}
+	for i, r := range name {
+		if i == 0 && !unicode.IsLetter(r) {
+			return fmt.Errorf("domain name %q must start with a letter", name)
+		}
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' {
+			return fmt.Errorf("domain name %q contains invalid character %q (only letters, digits, and underscores allowed)", name, r)
+		}
+	}
+	return nil
 }
 
 // WithLogger sets a custom logger

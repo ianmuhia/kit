@@ -19,6 +19,7 @@
 package pgxutil
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -556,8 +557,8 @@ func PgTextToStringPtr(pgText pgtype.Text) *string {
 	return ToPointer(pgText.Valid, pgText.String)
 }
 
-// PgNumericToFloat64 converts pgtype.Numeric to float64, returning 0 for NULL values.
-// This is useful when reading NUMERIC/DECIMAL columns from PostgreSQL.
+// PgNumericToFloat64 converts pgtype.Numeric to float64, returning 0 for NULL or
+// values that cannot be represented as float64. For error-aware conversion use PgNumericToFloat64E.
 // Note: This conversion may lose precision for very large or precise decimal values.
 //
 // Example:
@@ -565,11 +566,29 @@ func PgTextToStringPtr(pgText pgtype.Text) *string {
 //	price := pgxutil.PgNumericToFloat64(row.Price)
 //	fmt.Printf("Price: %.2f\n", price)
 func PgNumericToFloat64(n pgtype.Numeric) float64 {
+	f, _ := PgNumericToFloat64E(n)
+	return f
+}
+
+// PgNumericToFloat64E converts pgtype.Numeric to float64, returning an error if the
+// value cannot be represented as float64 (e.g., NaN, overflow).
+// Returns (0, nil) for NULL values.
+//
+// Example:
+//
+//	price, err := pgxutil.PgNumericToFloat64E(row.Price)
+//	if err != nil {
+//	    return fmt.Errorf("cannot convert price: %w", err)
+//	}
+func PgNumericToFloat64E(n pgtype.Numeric) (float64, error) {
 	if !n.Valid {
-		return 0
+		return 0, nil
 	}
-	f, _ := n.Float64Value()
-	return f.Float64
+	f, err := n.Float64Value()
+	if err != nil {
+		return 0, fmt.Errorf("pgNumericToFloat64: %w", err)
+	}
+	return f.Float64, nil
 }
 
 // UUIDToPgUUIDPtr converts a *uuid.UUID to pgtype.UUID.
@@ -603,4 +622,131 @@ func UUIDToPgUUIDPtr(id *uuid.UUID) pgtype.UUID {
 //	userID := pgxutil.ToPointer(row.UserID.Valid, uuid.UUID(row.UserID.Bytes))
 func PgUUIDToUUIDPtr(pgUUID pgtype.UUID) *uuid.UUID {
 	return ToPointer(pgUUID.Valid, uuid.UUID(pgUUID.Bytes))
+}
+
+// DecimalFromNumeric converts pgtype.Numeric to decimal.Decimal, returning
+// decimal.Zero for NULL values.
+//
+// Example:
+//
+//	price := pgxutil.DecimalFromNumeric(row.Price)
+func DecimalFromNumeric(n pgtype.Numeric) decimal.Decimal {
+	if !n.Valid {
+		return decimal.Zero
+	}
+	d, err := n.Value()
+	if err != nil || d == nil {
+		return decimal.Zero
+	}
+	result, err := decimal.NewFromString(fmt.Sprintf("%v", d))
+	if err != nil {
+		return decimal.Zero
+	}
+	return result
+}
+
+// NumericFromDecimal converts decimal.Decimal to pgtype.Numeric.
+// This is useful when inserting/updating NUMERIC/DECIMAL columns.
+//
+// Example:
+//
+//	params := db.CreateProductParams{
+//	    Price: pgxutil.NumericFromDecimal(price),
+//	}
+func NumericFromDecimal(d decimal.Decimal) pgtype.Numeric {
+	n := pgtype.Numeric{}
+	if err := n.Scan(d.String()); err != nil {
+		return pgtype.Numeric{Valid: false}
+	}
+	return n
+}
+
+// NumericFromDecimalPtr converts *decimal.Decimal to pgtype.Numeric,
+// treating nil as NULL.
+func NumericFromDecimalPtr(d *decimal.Decimal) pgtype.Numeric {
+	if d == nil {
+		return pgtype.Numeric{Valid: false}
+	}
+	return NumericFromDecimal(*d)
+}
+
+// DecimalFromNumericPtr converts pgtype.Numeric to *decimal.Decimal,
+// returning nil for NULL values.
+func DecimalFromNumericPtr(n pgtype.Numeric) *decimal.Decimal {
+	if !n.Valid {
+		return nil
+	}
+	d := DecimalFromNumeric(n)
+	return &d
+}
+
+// IntervalFromDuration converts time.Duration to pgtype.Interval.
+// This is useful when inserting/updating INTERVAL columns.
+//
+// Example:
+//
+//	params := db.CreateSessionParams{
+//	    TTL: pgxutil.IntervalFromDuration(24 * time.Hour),
+//	}
+func IntervalFromDuration(d time.Duration) pgtype.Interval {
+	micros := d.Microseconds()
+	return pgtype.Interval{Microseconds: micros, Valid: true}
+}
+
+// DurationFromInterval converts pgtype.Interval to time.Duration,
+// returning 0 for NULL values. Note: month/day components are approximated
+// as 30 days/month and added to the microseconds total.
+func DurationFromInterval(i pgtype.Interval) time.Duration {
+	if !i.Valid {
+		return 0
+	}
+	days := time.Duration(i.Days) * 24 * time.Hour
+	months := time.Duration(i.Months) * 30 * 24 * time.Hour
+	micros := time.Duration(i.Microseconds) * time.Microsecond
+	return months + days + micros
+}
+
+// IntervalFromDurationPtr converts *time.Duration to pgtype.Interval,
+// treating nil as NULL.
+func IntervalFromDurationPtr(d *time.Duration) pgtype.Interval {
+	if d == nil {
+		return pgtype.Interval{Valid: false}
+	}
+	return IntervalFromDuration(*d)
+}
+
+// Int4SliceFromInts converts []int32 to pgtype.FlatArray[int32] for use
+// with integer array columns.
+//
+// Example:
+//
+//	ids := pgxutil.Int4SliceFromInts([]int32{1, 2, 3})
+func Int4SliceFromInts(vals []int32) pgtype.FlatArray[int32] {
+	if vals == nil {
+		return pgtype.FlatArray[int32]{}
+	}
+	return pgtype.FlatArray[int32](vals)
+}
+
+// TextSliceFromStrings converts []string to pgtype.FlatArray[string] for use
+// with text array columns.
+//
+// Example:
+//
+//	tags := pgxutil.TextSliceFromStrings([]string{"go", "postgres"})
+func TextSliceFromStrings(vals []string) pgtype.FlatArray[string] {
+	if vals == nil {
+		return pgtype.FlatArray[string]{}
+	}
+	return pgtype.FlatArray[string](vals)
+}
+
+// StringsFromTextSlice converts pgtype.FlatArray[string] to []string.
+func StringsFromTextSlice(arr pgtype.FlatArray[string]) []string {
+	return []string(arr)
+}
+
+// IntsFromInt4Slice converts pgtype.FlatArray[int32] to []int32.
+func IntsFromInt4Slice(arr pgtype.FlatArray[int32]) []int32 {
+	return []int32(arr)
 }

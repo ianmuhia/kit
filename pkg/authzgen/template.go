@@ -5,15 +5,16 @@ package {{.Package}}
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"sync"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/authzed-go/v1"
 	"github.com/authzed/grpcutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"github.com/authzed/authzed-go/v1"
-	"google.golang.org/grpc"
 )
 
 // Base types
@@ -290,7 +291,7 @@ func (r {{$defName}}) Read{{$relName}}Relations(ctx context.Context) ({{$defName
 	for {
 		resp, err := stream.Recv()
 		if err != nil {
-			if err.Error() == "EOF" {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return result, err
@@ -316,9 +317,10 @@ func (r {{$defName}}) Read{{$relName}}Relations(ctx context.Context) ({{$defName
 {{$defName := $def.Name | camelcase}}
 // {{.Name | camelcase}} permission methods for {{$def.Name}}
 
-// Check{{$defName}}{{$permName}}Inputs represents the subjects that can be checked for {{.Name}} permission
+// Check{{$defName}}{{$permName}}Inputs represents the subjects that can be checked for {{.Name}} permission.
+// Subject types are inferred from the schema; add additional subject types as needed.
 type Check{{$defName}}{{$permName}}Inputs struct {
-	User []User ` + "`json:\"user,omitempty\"`" + `
+	Subjects []*v1.SubjectReference ` + "`json:\"subjects,omitempty\"`" + `
 }
 
 // Check{{$permName}} checks if any of the provided subjects have {{$perm.Name}} permission on this {{$def.Name}}
@@ -329,13 +331,11 @@ func (r {{$defName}}) Check{{$permName}}(ctx context.Context, inputs Check{{$def
 		return false, fmt.Errorf("failed to get client: %w", err)
 	}
 
-	for _, subject := range inputs.User {
+	for _, subject := range inputs.Subjects {
 		resp, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
-			Resource: r.ResourceReference(),
+			Resource:   r.ResourceReference(),
 			Permission: string({{$defName}}{{$permName}}Perm),
-			Subject: &v1.SubjectReference{
-				Object: subject.ResourceReference(),
-			},
+			Subject:    subject,
 		})
 		if err != nil {
 			return false, err
@@ -373,7 +373,7 @@ func (r {{$defName}}) Lookup{{$permName}}Subjects(ctx context.Context, subjectTy
 	for {
 		lookupResp, err := stream.Recv()
 		if err != nil {
-			if err.Error() == "EOF" {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, err
@@ -411,7 +411,7 @@ func Lookup{{$defName}}{{$permName}}Resources(ctx context.Context, subject *v1.S
 	for {
 		lookupResp, err := stream.Recv()
 		if err != nil {
-			if err.Error() == "EOF" {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, err

@@ -20,7 +20,11 @@ func FileExists(path string) bool {
 	return !os.IsNotExist(err)
 }
 
-// WriteFile writes content to a file, creating parent directories if needed
+// ErrFileExists is returned by WriteFileSafe when the target file already exists.
+var ErrFileExists = fmt.Errorf("file already exists")
+
+// WriteFile writes content to a file, creating parent directories if needed.
+// It overwrites any existing file at the path.
 func WriteFile(path string, content []byte) error {
 	dir := filepath.Dir(path)
 	if err := EnsureDir(dir); err != nil {
@@ -32,6 +36,19 @@ func WriteFile(path string, content []byte) error {
 	}
 
 	return nil
+}
+
+// WriteFileSafe writes content to a file only if it does not already exist.
+// Returns an error wrapping ErrFileExists if a file is already present so
+// callers can distinguish a conflict from other I/O errors:
+//
+//	err := codegen.WriteFileSafe(path, content)
+//	if errors.Is(err, codegen.ErrFileExists) { ... }
+func WriteFileSafe(path string, content []byte) error {
+	if FileExists(path) {
+		return fmt.Errorf("%w: %s", ErrFileExists, path)
+	}
+	return WriteFile(path, content)
 }
 
 // ReadFile reads a file and returns its content

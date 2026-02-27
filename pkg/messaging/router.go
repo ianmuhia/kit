@@ -100,3 +100,8 @@ func (r *Router) RegisterDomainHandlers(handlers map[string]message.NoPublishHan
 		r.RegisterHandler(topic, topic, handler)
 	}
 }
+
+// IsRunning reports whether the router has been started and is still running.
+func (r *Router) IsRunning() bool {
+	return r.router.IsRunning()
+}

@@ -366,6 +366,13 @@ func (p *Parser) parseRelationExpression() (RelationExpressionNode, error) {
 func (p *Parser) parseSingleRelation() (RelationExpressionNode, error) {
 	slog.Debug("Parsing single relation", "current_token", p.peek().Type.String(), "literal", p.peek().Literal)
 
+	// Handle wildcard relation: type:*
+	if p.peek().Type == WILDCARD {
+		p.advance()
+		slog.Debug("Parsed wildcard relation")
+		return &SingleRelationNode{Value: "*"}, nil
+	}
+
 	identToken, err := p.consume(IDENTIFIER)
 	if err != nil {
 		slog.Error("Failed to consume identifier in single relation", "error", err)

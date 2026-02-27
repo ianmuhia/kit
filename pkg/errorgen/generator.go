@@ -342,6 +342,14 @@ func (c *ErrorConfig) validate() error {
 			return fmt.Errorf("duplicate error name: %s", e.Name)
 		}
 
+		if !isUpperSnakeCase(e.Code) {
+			return fmt.Errorf("error code %q must be UPPER_SNAKE_CASE (e.g. NOT_FOUND, INVALID_INPUT)", e.Code)
+		}
+
+		if e.HTTPStatus != 0 && !isValidHTTPStatus(e.HTTPStatus) {
+			return fmt.Errorf("invalid HTTP status %d for error %s; must be between 100 and 599", e.HTTPStatus, e.Name)
+		}
+
 		if e.Severity != "" && !isValidSeverity(e.Severity) {
 			return fmt.Errorf("invalid severity %s for error %s; must be one of: critical, high, medium, low",
 				e.Severity, e.Name)
@@ -360,6 +368,25 @@ func (c *ErrorConfig) validate() error {
 	}
 
 	return nil
+}
+
+// isUpperSnakeCase returns true when s contains only uppercase letters, digits,
+// and underscores and does not start or end with an underscore.
+func isUpperSnakeCase(s string) bool {
+	if s == "" || s[0] == '_' || s[len(s)-1] == '_' {
+		return false
+	}
+	for _, r := range s {
+		if !((r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+			return false
+		}
+	}
+	return true
+}
+
+// isValidHTTPStatus returns true for standard HTTP status codes (100–599).
+func isValidHTTPStatus(code int) bool {
+	return code >= 100 && code <= 599
 }
 
 func isValidSeverity(severity string) bool {

@@ -1,46 +1,72 @@
 package main
 
 import (
-	"flag"
+	"context"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/ianmuhia/kit/pkg/errorgen"
+	"github.com/urfave/cli/v3"
 )
 
 func main() {
-	// Parse command-line flags
-	inputFile := flag.String("input", "errors.cue", "Input CUE file or directory")
-	outputFile := flag.String("output", "errors.go", "Output Go file")
-	templateFile := flag.String("template", "", "Custom error template file (optional)")
-	packageName := flag.String("package", "", "Override package name (optional)")
-	flag.Parse()
+	cmd := &cli.Command{
+		Name:    "error-gen",
+		Usage:   "Generate strongly-typed error codes from CUE definitions",
+		Version: "1.0.0",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "input",
+				Aliases: []string{"i"},
+				Usage:   "Input CUE file or directory",
+				Value:   "errors.cue",
+			},
+			&cli.StringFlag{
+				Name:    "output",
+				Aliases: []string{"o"},
+				Usage:   "Output Go file path",
+				Value:   "errors.go",
+			},
+			&cli.StringFlag{
+				Name:    "template",
+				Aliases: []string{"t"},
+				Usage:   "Custom error template file (optional)",
+			},
+			&cli.StringFlag{
+				Name:    "package",
+				Aliases: []string{"p"},
+				Usage:   "Override package name (optional)",
+			},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			opts := []errorgen.GeneratorOption{
+				errorgen.WithInputFile(cmd.String("input")),
+				errorgen.WithOutputFile(cmd.String("output")),
+			}
 
-	// Build options
-	opts := []errorgen.GeneratorOption{
-		errorgen.WithInputFile(*inputFile),
-		errorgen.WithOutputFile(*outputFile),
+			if t := cmd.String("template"); t != "" {
+				opts = append(opts, errorgen.WithTemplateFile(t))
+			}
+			if p := cmd.String("package"); p != "" {
+				opts = append(opts, errorgen.WithPackageName(p))
+			}
+
+			generator, err := errorgen.NewGenerator(opts...)
+			if err != nil {
+				return fmt.Errorf("failed to create generator: %w", err)
+			}
+
+			if err := generator.Generate(); err != nil {
+				return fmt.Errorf("failed to generate code: %w", err)
+			}
+
+			fmt.Printf("✓ Error code generated successfully in %s\n", cmd.String("output"))
+			return nil
+		},
 	}
 
-	if *templateFile != "" {
-		opts = append(opts, errorgen.WithTemplateFile(*templateFile))
+	if err := cmd.Run(context.Background(), os.Args); err != nil {
+		log.Fatal(err)
 	}
-
-	if *packageName != "" {
-		opts = append(opts, errorgen.WithPackageName(*packageName))
-	}
-
-	// Create generator and run
-	generator, err := errorgen.NewGenerator(opts...)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating generator: %v\n", err)
-		os.Exit(1)
-	}
-
-	if err := generator.Generate(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error generating code: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("✓ Error code generated successfully in %s\n", *outputFile)
 }

@@ -28,7 +28,37 @@ import (
 	"time"
 
 	"github.com/oapi-codegen/nullable"
+	"github.com/shopspring/decimal"
 )
+
+// Decimal conversions
+
+// ToNullableDecimal converts a *decimal.Decimal to nullable.Nullable[decimal.Decimal].
+// Returns an unspecified Nullable if the pointer is nil.
+func ToNullableDecimal(d *decimal.Decimal) nullable.Nullable[decimal.Decimal] {
+	if d == nil {
+		return nullable.Nullable[decimal.Decimal]{}
+	}
+	return nullable.NewNullableWithValue(*d)
+}
+
+// FromNullableDecimal converts nullable.Nullable[decimal.Decimal] to *decimal.Decimal.
+// Returns nil if the Nullable is unspecified.
+func FromNullableDecimal(n nullable.Nullable[decimal.Decimal]) *decimal.Decimal {
+	if !n.IsSpecified() {
+		return nil
+	}
+	val := n.MustGet()
+	return &val
+}
+
+// DecimalValue returns the decimal.Decimal value or the provided default if unspecified.
+func DecimalValue(n nullable.Nullable[decimal.Decimal], defaultVal decimal.Decimal) decimal.Decimal {
+	if !n.IsSpecified() {
+		return defaultVal
+	}
+	return n.MustGet()
+}
 
 // String conversions
 
@@ -147,9 +177,22 @@ func BoolValue(n nullable.Nullable[bool], defaultVal bool) bool {
 	return n.MustGet()
 }
 
-// Integer conversions
+// FromNullableInt converts nullable.Nullable[int] to *int.
+// Returns nil if the Nullable is unspecified.
+//
+// Example:
+//
+//	n := nullable.NewNullableWithValue(42)
+//	i := FromNullableInt(n) // *int pointing to 42
+func FromNullableInt(n nullable.Nullable[int]) *int {
+	if !n.IsSpecified() {
+		return nil
+	}
+	val := n.MustGet()
+	return &val
+}
 
-// ToNullableInt converts a *int to nullable.Nullable[int].
+// IntValue returns the int value or the provided default if unspecified.
 //
 // Example:
 //

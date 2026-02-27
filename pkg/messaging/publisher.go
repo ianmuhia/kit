@@ -108,7 +108,8 @@ func WithReconnectHandler(handler func(*nc.Conn)) PublisherOption {
 	}
 }
 
-// defaultPublisherConfig returns sensible defaults.
+// defaultPublisherConfig returns sensible defaults. Disconnect/reconnect handlers
+// are set to nil and applied after options so they use the configured logger.
 func defaultPublisherConfig() *PublisherConfig {
 	return &PublisherConfig{
 		url:           "nats://localhost:4222",
@@ -117,24 +118,33 @@ func defaultPublisherConfig() *PublisherConfig {
 		marshaler:     &nats.GobMarshaler{},
 		autoProvision: true,
 		maxReconnects: -1,
-		disconnectHandler: func(conn *nc.Conn, err error) {
-			if err != nil {
-				slog.Error("NATS disconnected", "error", err)
-			}
-		},
-		reconnectHandler: func(conn *nc.Conn) {
-			slog.Info("NATS reconnected", "url", conn.ConnectedUrl())
-		},
 	}
 }
 
 // NewPublisher creates a NATS JetStream publisher with production-ready settings.
 func NewPublisher(opts ...PublisherOption) (message.Publisher, error) {
 	config := defaultPublisherConfig()
-	
-	// Apply all options
+
+	// Apply all options first so the configured logger is available to default handlers.
 	for _, opt := range opts {
 		opt(config)
+	}
+
+	// Set default handlers using the configured logger so log output goes to the
+	// right destination even when the caller does not supply custom handlers.
+	if config.disconnectHandler == nil {
+		logger := config.logger
+		config.disconnectHandler = func(_ *nc.Conn, err error) {
+			if err != nil {
+				logger.Error("NATS publisher disconnected", "error", err)
+			}
+		}
+	}
+	if config.reconnectHandler == nil {
+		logger := config.logger
+		config.reconnectHandler = func(conn *nc.Conn) {
+			logger.Info("NATS publisher reconnected", "url", conn.ConnectedUrl())
+		}
 	}
 
 	if config.url == "" {

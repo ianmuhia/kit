@@ -75,6 +75,8 @@ func WithClock(clock limiters.Clock) Option {
 //   - Capacity: 100 requests
 //   - Rate: 1 minute
 //   - KeyPrefix: "ratelimit"
+//
+// If capacity or rate are invalid (≤ 0), defaults are used and a warning is logged.
 func New(redisClient *redis.Client, opts ...Option) *Limiter {
 	l := &Limiter{
 		redisClient: redisClient,
@@ -91,13 +93,31 @@ func New(redisClient *redis.Client, opts ...Option) *Limiter {
 		opt(l)
 	}
 
+	if l.capacity <= 0 {
+		l.logger.Warn("ratelimit: capacity must be > 0, using default 100", "provided", l.capacity)
+		l.capacity = 100
+	}
+	if l.rate <= 0 {
+		l.logger.Warn("ratelimit: rate must be > 0, using default 1m", "provided", l.rate)
+		l.rate = time.Minute
+	}
+
 	return l
 }
 
 // Limit applies rate limiting for a specific key (e.g., IP address, user ID).
 // Returns the wait duration if rate limited, or zero if the request is allowed.
+// If Redis is unavailable, the request is allowed through (fail-open) and the
+// error is logged.
 func (l *Limiter) Limit(ctx context.Context, key string) (time.Duration, error) {
 	if !l.enabled {
+		return 0, nil
+	}
+
+	// Fail-open: if Redis is unreachable, allow the request through.
+	if err := l.redisClient.Ping(ctx).Err(); err != nil {
+		l.logger.Warn("ratelimit: Redis unavailable, allowing request through",
+			"key", key, "error", err)
 		return 0, nil
 	}
 
@@ -118,7 +138,7 @@ func (l *Limiter) Limit(ctx context.Context, key string) (time.Duration, error) 
 				&slogLogger{logger: l.logger},
 			)
 		},
-		l.rate*2, // TTL for inactive limiters
+		l.rate*2,
 		l.clock.Now(),
 	)
 

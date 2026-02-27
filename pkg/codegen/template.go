@@ -11,7 +11,8 @@ import (
 
 // TemplateEngine handles template processing
 type TemplateEngine struct {
-	fs embed.FS
+	fs      embed.FS
+	funcMap template.FuncMap
 }
 
 // NewTemplateEngine creates a new template engine
@@ -19,30 +20,44 @@ func NewTemplateEngine(fs embed.FS) *TemplateEngine {
 	return &TemplateEngine{fs: fs}
 }
 
-// Execute reads a template file, parses it, and writes the result to outputPath
+// WithFuncMap registers additional template functions available in all templates
+// executed by this engine. It returns the engine for chaining.
+func (te *TemplateEngine) WithFuncMap(fm template.FuncMap) *TemplateEngine {
+	if te.funcMap == nil {
+		te.funcMap = make(template.FuncMap)
+	}
+	for k, v := range fm {
+		te.funcMap[k] = v
+	}
+	return te
+}
+
+// Execute reads a template file, parses it, and writes the result to outputPath.
+// Any FuncMap registered via WithFuncMap is available inside the template.
 func (te *TemplateEngine) Execute(templatePath, outputPath string, data any) error {
-	// Read template from embedded FS
 	tmplContent, err := te.fs.ReadFile(templatePath)
 	if err != nil {
 		return fmt.Errorf("failed to read template %s: %w", templatePath, err)
 	}
 
-	// Parse template
-	tmpl, err := template.New(filepath.Base(templatePath)).Parse(string(tmplContent))
-	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
+	tmpl := template.New(filepath.Base(templatePath))
+	if len(te.funcMap) > 0 {
+		tmpl = tmpl.Funcs(te.funcMap)
 	}
 
-	// Create output file
+	tmpl, err = tmpl.Parse(string(tmplContent))
+	if err != nil {
+		return fmt.Errorf("failed to parse template %s: %w", templatePath, err)
+	}
+
 	outFile, err := os.Create(outputPath)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
 	defer outFile.Close()
 
-	// Execute template
 	if err := tmpl.Execute(outFile, data); err != nil {
-		return fmt.Errorf("failed to execute template: %w", err)
+		return fmt.Errorf("failed to execute template %s: %w", templatePath, err)
 	}
 
 	return nil
