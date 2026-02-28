@@ -1,0 +1,124 @@
+[tools]
+go = "1.26"
+golangci-lint = "latest"
+
+[tasks.build]
+description = "Build all binaries into bin/"
+run = """
+mkdir -p bin
+for cmd in cmd/*/; do
+  name=$(basename "$cmd")
+  echo "Building $name..."
+  go build -o "bin/$name" "./$cmd"
+done
+echo "✓ Build complete. Binaries in bin/"
+"""
+
+[tasks."build:ddd-gen"]
+description = "Build ddd-gen binary"
+run = "mkdir -p bin && go build -o bin/ddd-gen ./cmd/ddd-gen"
+
+[tasks."build:error-gen"]
+description = "Build error-gen binary"
+run = "mkdir -p bin && go build -o bin/error-gen ./cmd/error-gen"
+
+[tasks."build:authz-codegen"]
+description = "Build authz-codegen binary"
+run = "mkdir -p bin && go build -o bin/authz-codegen ./cmd/authz-codegen"
+
+[tasks.install]
+description = "Install all binaries to GOPATH/bin"
+run = """
+for cmd in cmd/*/; do
+  name=$(basename "$cmd")
+  echo "Installing $name..."
+  go install "./$cmd"
+done
+echo "✓ Installation complete"
+"""
+
+[tasks."install:ddd-gen"]
+description = "Install ddd-gen to GOPATH/bin"
+run = "go install ./cmd/ddd-gen"
+
+[tasks."install:error-gen"]
+description = "Install error-gen to GOPATH/bin"
+run = "go install ./cmd/error-gen"
+
+[tasks."install:authz-codegen"]
+description = "Install authz-codegen to GOPATH/bin"
+run = "go install ./cmd/authz-codegen"
+
+[tasks.clean]
+description = "Remove build artifacts"
+run = """
+rm -rf bin
+go clean
+echo "✓ Clean complete"
+"""
+
+[tasks.test]
+description = "Run all tests with race detector"
+run = "go test -v -race -coverprofile=coverage.out ./..."
+
+[tasks."test:coverage"]
+description = "Run tests and open HTML coverage report"
+depends = ["test"]
+run = "go tool cover -html=coverage.out"
+
+[tasks."test:pkg"]
+description = "Run tests for pkg/ only"
+run = "go test -v -race ./pkg/..."
+
+[tasks.lint]
+description = "Run golangci-lint"
+run = "golangci-lint run ./..."
+
+[tasks.fmt]
+description = "Format all Go code"
+run = """
+go fmt ./...
+gofmt -s -w .
+echo "✓ Formatting complete"
+"""
+
+[tasks.tidy]
+description = "Tidy go.mod and go.sum"
+run = "go mod tidy"
+
+[tasks.deps]
+description = "Download all dependencies"
+run = "go mod download"
+
+[tasks."deps:upgrade"]
+description = "Upgrade all dependencies to latest"
+run = """
+go get -u ./...
+go mod tidy
+echo "✓ Dependencies upgraded"
+"""
+
+[tasks.verify]
+description = "Format, lint, and test (pre-push check)"
+depends = ["fmt", "lint", "test"]
+
+[tasks.version]
+description = "Show Go version"
+run = "go version"
+
+[tasks."dev:ddd-gen"]
+description = "Run ddd-gen with example args (outputs to ./tmp)"
+run = "go run ./cmd/ddd-gen --domain=example --output=./tmp --module=github.com/example/project"
+
+[tasks."dev:gen-sample"]
+description = "Generate a sample 'product' domain in ./tmp"
+run = """
+echo "Generating sample 'product' domain in ./tmp..."
+go run ./cmd/ddd-gen --domain=product --output=./tmp --module=github.com/example/project --with-tests
+echo ""
+echo "✓ Generated in ./tmp/product"
+"""
+
+[tasks.watch]
+description = "Watch for Go file changes and rebuild (requires watchexec)"
+run = "watchexec -e go -- mise run build"
