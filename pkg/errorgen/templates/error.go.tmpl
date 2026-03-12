@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 )
@@ -38,7 +37,10 @@ func (e *Error) Error() string {
 	}
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
 }
-
+// GetStatus implements the huma.StatusError interface
+func (e *Error) GetStatus() int {
+    return e.HTTPStatus
+}
 // Unwrap returns the underlying error for errors.Is/As support
 func (e *Error) Unwrap() error {
 	return e.cause
@@ -106,17 +108,6 @@ func (e *Error) ToMap() map[string]any{
 	}
 	
 	return result
-}
-
-// WriteJSONResponse writes the error as a JSON response with appropriate HTTP status
-func (e *Error) WriteJSONResponse(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	statusCode := e.HTTPStatus
-	if statusCode == 0 {
-		statusCode = http.StatusInternalServerError
-	}
-	w.WriteHeader(statusCode)
-	return json.NewEncoder(w).Encode(e.ToMap())
 }
 
 // Error code constants
