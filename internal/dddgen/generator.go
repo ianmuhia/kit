@@ -196,14 +196,13 @@ func (g *Generator) generateFile(tmplPath, outputPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer outFile.Close()
 
-	// Execute template
 	if err := tmpl.Execute(outFile, g.data); err != nil {
+		outFile.Close()
 		return fmt.Errorf("failed to execute template: %w", err)
 	}
 
-	return nil
+	return outFile.Close()
 }
 
 func (g *Generator) printSuccess() {

@@ -158,6 +158,9 @@ func NewSubscriber(opts ...SubscriberOption) (message.Subscriber, error) {
 	if config.url == "" {
 		return nil, fmt.Errorf("NATS URL is required")
 	}
+	if config.durablePrefix == "" {
+		return nil, fmt.Errorf("durable prefix is required for JetStream consumers")
+	}
 
 	natsOpts := buildSubscriberNATSOptions(config)
 

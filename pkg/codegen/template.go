@@ -54,13 +54,13 @@ func (te *TemplateEngine) Execute(templatePath, outputPath string, data any) err
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer outFile.Close()
 
 	if err := tmpl.Execute(outFile, data); err != nil {
+		outFile.Close()
 		return fmt.Errorf("failed to execute template %s: %w", templatePath, err)
 	}
 
-	return nil
+	return outFile.Close()
 }
 
 // ExecuteString executes a template string and returns the result

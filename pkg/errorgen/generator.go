@@ -180,7 +180,10 @@ func (g *Generator) loadCUEConfig() (*ErrorConfig, error) {
 	// Get package name
 	packageValue := value.LookupPath(cue.ParsePath("package"))
 	if packageValue.Exists() {
-		pkgStr, _ := packageValue.String()
+		pkgStr, err := packageValue.String()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read 'package' field: %w", err)
+		}
 		config.Package = pkgStr
 	}
 	if config.Package == "" {
@@ -199,22 +202,38 @@ func (g *Generator) loadCUEConfig() (*ErrorConfig, error) {
 		return nil, fmt.Errorf("errors must be a list: %w", err)
 	}
 
-	for iter.Next() {
+	for i := 0; iter.Next(); i++ {
 		errorDef := ErrorDefinition{}
 		errVal := iter.Value()
 
-		// Extract each field
-		if code := errVal.LookupPath(cue.ParsePath("code")); code.Exists() {
-			errorDef.Code, _ = code.String()
+		// Required fields - surface extraction errors for better diagnostics.
+		if codeVal := errVal.LookupPath(cue.ParsePath("code")); codeVal.Exists() {
+			str, err := codeVal.String()
+			if err != nil {
+				return nil, fmt.Errorf("error[%d]: failed to read 'code' field: %w", i, err)
+			}
+			errorDef.Code = str
 		}
-		if name := errVal.LookupPath(cue.ParsePath("name")); name.Exists() {
-			errorDef.Name, _ = name.String()
+		if nameVal := errVal.LookupPath(cue.ParsePath("name")); nameVal.Exists() {
+			str, err := nameVal.String()
+			if err != nil {
+				return nil, fmt.Errorf("error[%d]: failed to read 'name' field: %w", i, err)
+			}
+			errorDef.Name = str
 		}
-		if message := errVal.LookupPath(cue.ParsePath("message")); message.Exists() {
-			errorDef.Message, _ = message.String()
+		if msgVal := errVal.LookupPath(cue.ParsePath("message")); msgVal.Exists() {
+			str, err := msgVal.String()
+			if err != nil {
+				return nil, fmt.Errorf("error[%d]: failed to read 'message' field: %w", i, err)
+			}
+			errorDef.Message = str
 		}
+
+		// Optional fields - skip silently if not concrete.
 		if category := errVal.LookupPath(cue.ParsePath("category")); category.Exists() {
-			errorDef.Category, _ = category.String()
+			if str, err := category.String(); err == nil {
+				errorDef.Category = str
+			}
 		}
 		if httpStatus := errVal.LookupPath(cue.ParsePath("httpStatus")); httpStatus.Exists() {
 			if status, err := httpStatus.Int64(); err == nil {
@@ -222,16 +241,22 @@ func (g *Generator) loadCUEConfig() (*ErrorConfig, error) {
 			}
 		}
 		if severity := errVal.LookupPath(cue.ParsePath("severity")); severity.Exists() {
-			errorDef.Severity, _ = severity.String()
+			if str, err := severity.String(); err == nil {
+				errorDef.Severity = str
+			}
 		}
 		if description := errVal.LookupPath(cue.ParsePath("description")); description.Exists() {
-			errorDef.Description, _ = description.String()
+			if str, err := description.String(); err == nil {
+				errorDef.Description = str
+			}
 		}
 		if parameters := errVal.LookupPath(cue.ParsePath("parameters")); parameters.Exists() {
-			paramIter, _ := parameters.List()
-			for paramIter.Next() {
-				if param, err := paramIter.Value().String(); err == nil {
-					errorDef.Parameters = append(errorDef.Parameters, param)
+			paramIter, err := parameters.List()
+			if err == nil {
+				for paramIter.Next() {
+					if param, err := paramIter.Value().String(); err == nil {
+						errorDef.Parameters = append(errorDef.Parameters, param)
+					}
 				}
 			}
 		}
@@ -310,20 +335,23 @@ func (g *Generator) generateCode(config *ErrorConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
-	defer outFile.Close()
 
-	// Execute template
 	if err := tmpl.Execute(outFile, config); err != nil {
+		outFile.Close()
 		return fmt.Errorf("failed to execute template: %w", err)
 	}
 
-	return nil
+	return outFile.Close()
 }
 
 // validate ensures the error config is valid.
 func (c *ErrorConfig) validate() error {
 	if c.Package == "" {
 		return fmt.Errorf("package name is required")
+	}
+
+	if len(c.Errors) == 0 {
+		return fmt.Errorf("errors list must not be empty")
 	}
 
 	seenCodes := make(map[string]bool)

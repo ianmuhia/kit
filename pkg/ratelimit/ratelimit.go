@@ -3,6 +3,7 @@ package ratelimit
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -10,6 +11,11 @@ import (
 	"github.com/mennanov/limiters"
 	"github.com/redis/go-redis/v9"
 )
+
+// ErrRateLimiterUnavailable is returned by Limit when the Redis backend is
+// unreachable. The request is allowed through (fail-open), but callers can
+// distinguish this condition from a genuine limit exhaustion.
+var ErrRateLimiterUnavailable = errors.New("rate limiter unavailable")
 
 // Limiter provides per-key rate limiting using Redis backend.
 type Limiter struct {
@@ -118,9 +124,10 @@ func (l *Limiter) Limit(ctx context.Context, key string) (time.Duration, error) 
 	if err := l.redisClient.Ping(ctx).Err(); err != nil {
 		l.logger.Warn("ratelimit: Redis unavailable, allowing request through",
 			"key", key, "error", err)
-		return 0, nil
+		return 0, ErrRateLimiterUnavailable
 	}
 
+	l.mu.Lock()
 	limiter := l.registry.GetOrCreate(
 		key,
 		func() any {
@@ -141,6 +148,7 @@ func (l *Limiter) Limit(ctx context.Context, key string) (time.Duration, error) 
 		l.rate*2,
 		l.clock.Now(),
 	)
+	l.mu.Unlock()
 
 	return limiter.(*limiters.TokenBucket).Limit(ctx)
 }
