@@ -10,6 +10,10 @@ import (
 	"strings"
 	"text/template"
 	"unicode"
+
+	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
 // Generator handles AuthZed schema code generation
@@ -96,59 +100,81 @@ func (g *Generator) parseSchema() (*Schema, error) {
 		return nil, fmt.Errorf("failed to read schema file: %w", err)
 	}
 
-	g.logger.Debug("Schema file read successfully", "size_bytes", len(content))
+	g.logger.Debug("schema file read", "size_bytes", len(content))
 
-	lexer := NewLexer(string(content))
-	tokens := lexer.TokenizeAll()
-
-	g.logger.Debug("Lexical analysis complete", "token_count", len(tokens))
-
-	parser := NewParser(tokens)
-	astDefinitions, err := parser.ParseDefinitions()
+	compiled, err := compiler.Compile(
+		compiler.InputSchema{
+			Source:       input.Source(g.schemaFile),
+			SchemaString: string(content),
+		},
+		compiler.AllowUnprefixedObjectType(),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse schema: %w", err)
+		return nil, fmt.Errorf("failed to compile schema: %w", err)
 	}
 
-	g.logger.Info("AST parsing successful", "definitions_count", len(astDefinitions))
+	g.logger.Info("schema compiled", "definitions", len(compiled.ObjectDefinitions))
 
-	// Convert AST definitions to our internal format
 	var schema Schema
-	for _, astDef := range astDefinitions {
-		pkg := astDef.ObjectType.Prefix
-		if pkg == "" {
-			pkg = "authz"
-		}
-
+	for _, ns := range compiled.ObjectDefinitions {
+		pkg, name := splitNamespace(ns.Name)
 		def := Definition{
 			Package: pkg,
-			Name:    astDef.ObjectType.Name,
+			Name:    name,
 		}
 
-		// Convert relations
-		for _, astRel := range astDef.Relations {
-			relation := Relation{
-				Name:  astRel.Name,
-				Types: extractTypesFromRelationExpression(astRel.Expression),
+		for _, rel := range ns.Relation {
+			if rel.UsersetRewrite == nil {
+				// relation: has type information, no expression
+				r := Relation{
+					Name:  rel.Name,
+					Types: extractAllowedTypes(rel.TypeInformation),
+				}
+				r.IsUnion = len(r.Types) > 1
+				def.Relations = append(def.Relations, r)
+			} else {
+				// permission: has userset rewrite expression
+				def.Permissions = append(def.Permissions, Permission{Name: rel.Name})
 			}
-			if len(relation.Types) > 1 {
-				relation.IsUnion = true
-			}
-			def.Relations = append(def.Relations, relation)
-		}
-
-		// Convert permissions
-		for _, astPerm := range astDef.Permissions {
-			permission := Permission{
-				Name:       astPerm.Name,
-				Expression: astPerm.Expression.String(),
-			}
-			def.Permissions = append(def.Permissions, permission)
 		}
 
 		schema.Definitions = append(schema.Definitions, def)
 	}
 
 	return &schema, nil
+}
+
+// splitNamespace splits a SpiceDB namespace name (e.g. "platform/user") into
+// the Go package name ("platform") and the short definition name ("user").
+// Unprefixed names (e.g. "user") use "authz" as the package.
+func splitNamespace(nsName string) (pkg, name string) {
+	if idx := strings.LastIndex(nsName, "/"); idx != -1 {
+		return nsName[:idx], nsName[idx+1:]
+	}
+	return "authz", nsName
+}
+
+// extractAllowedTypes converts the SpiceDB TypeInformation into the type-string
+// slice the code template expects (e.g. "user", "platform/user", "group#member").
+// Public-wildcard entries (e.g. user:*) are omitted because they cannot be
+// represented as typed Go struct fields.
+func extractAllowedTypes(ti *corev1.TypeInformation) []string {
+	if ti == nil {
+		return nil
+	}
+	types := make([]string, 0, len(ti.AllowedDirectRelations))
+	for _, ar := range ti.AllowedDirectRelations {
+		switch rw := ar.GetRelationOrWildcard().(type) {
+		case *corev1.AllowedRelation_Relation:
+			if rw.Relation != "" && rw.Relation != "..." {
+				types = append(types, ar.Namespace+"#"+rw.Relation)
+			} else {
+				types = append(types, ar.Namespace)
+			}
+		// *corev1.AllowedRelation_PublicWildcard_ (type:*) — skip; not a typed subject
+		}
+	}
+	return types
 }
 
 func (g *Generator) generateCode(packageName string, definitions []Definition) error {
@@ -201,24 +227,6 @@ func (g *Generator) generateCode(packageName string, definitions []Definition) e
 
 	filename := filepath.Join(g.outputDir, packageName+".gen.go")
 	return os.WriteFile(filename, formatted, 0o644)
-}
-
-func extractTypesFromRelationExpression(expr RelationExpressionNode) []string {
-	var types []string
-
-	switch node := expr.(type) {
-	case *SingleRelationNode:
-		if node.Fragment != "" {
-			types = append(types, fmt.Sprintf("%s#%s", node.Value, node.Fragment))
-		} else {
-			types = append(types, node.Value)
-		}
-	case *UnionRelationNode:
-		types = append(types, extractTypesFromRelationExpression(node.Left)...)
-		types = append(types, extractTypesFromRelationExpression(node.Right)...)
-	}
-
-	return types
 }
 
 // ToPascalCase converts a string to PascalCase
