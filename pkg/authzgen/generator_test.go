@@ -385,6 +385,13 @@ func TestGenerate_OutputContainsExpectedSymbols(t *testing.T) {
 	assert.Contains(t, doctype, "func (s *DoctypeStore) LookupReadResources(")
 	assert.Contains(t, doctype, "func (s *DoctypeStore) LookupReadSubjects(")
 
+	// Subject type replaces *v1.SubjectReference in the public API
+	assert.Contains(t, client, "type Subject struct")
+	assert.Contains(t, client, "func NewSubject(")
+	assert.Contains(t, client, "func NewSubjectWithRelation(")
+	assert.Contains(t, doctype, "subject Subject)")
+	assert.NotContains(t, doctype, "*v1.SubjectReference")
+
 	// old patterns must not exist──
 	assert.NotContains(t, doctype, "CheckDoctypeCreateInputs")
 	assert.NotContains(t, doctype, "func LookupDoctypeReadResources(")

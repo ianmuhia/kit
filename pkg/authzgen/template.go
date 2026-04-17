@@ -8,6 +8,7 @@ package {{.Package}}
 import (
 	"fmt"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/authzed-go/v1"
 	"github.com/authzed/grpcutil"
 	"google.golang.org/grpc"
@@ -19,6 +20,38 @@ type Type string
 type Relation string
 type Permission string
 type ID string
+
+// Subject identifies a subject in a permission check.
+// Use NewSubject for direct objects and NewSubjectWithRelation when
+// the subject is a computed relation (e.g. "group:eng#member").
+type Subject struct {
+	Type     string
+	ID       string
+	Relation string // optional
+}
+
+// NewSubject creates a Subject for a direct object.
+func NewSubject(subjectType, id string) Subject {
+	return Subject{Type: subjectType, ID: id}
+}
+
+// NewSubjectWithRelation creates a Subject with an optional relation.
+func NewSubjectWithRelation(subjectType, id, relation string) Subject {
+	return Subject{Type: subjectType, ID: id, Relation: relation}
+}
+
+func (s Subject) toProto() *v1.SubjectReference {
+	ref := &v1.SubjectReference{
+		Object: &v1.ObjectReference{
+			ObjectType: s.Type,
+			ObjectId:   s.ID,
+		},
+	}
+	if s.Relation != "" {
+		ref.OptionalRelation = s.Relation
+	}
+	return ref
+}
 
 // Client wraps authzed.ClientWithExperimental.
 type Client struct {
@@ -157,9 +190,9 @@ type {{$defName}}StoreInterface interface {
 {{end -}}
 {{range $def.Permissions -}}
 {{$permName := .Name | camelcase}}
-	Check{{$permName}}(ctx context.Context, id {{$defName}}, subject *v1.SubjectReference) (bool, error)
+	Check{{$permName}}(ctx context.Context, id {{$defName}}, subject Subject) (bool, error)
 	Lookup{{$permName}}Subjects(ctx context.Context, id {{$defName}}, subjectType string) ([]string, error)
-	Lookup{{$permName}}Resources(ctx context.Context, subject *v1.SubjectReference) ([]{{$defName}}, error)
+	Lookup{{$permName}}Resources(ctx context.Context, subject Subject) ([]{{$defName}}, error)
 {{end -}}
 }
 
@@ -263,11 +296,11 @@ func (s *{{$defName}}Store) Read{{$relName}}Relations(ctx context.Context, id {{
 {{$permName := .Name | camelcase}}
 
 // Check{{$permName}} returns true when subject has {{.Name}} permission on id.
-func (s *{{$defName}}Store) Check{{$permName}}(ctx context.Context, id {{$defName}}, subject *v1.SubjectReference) (bool, error) {
+func (s *{{$defName}}Store) Check{{$permName}}(ctx context.Context, id {{$defName}}, subject Subject) (bool, error) {
 	resp, err := s.client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 		Resource:   id.ResourceReference(),
 		Permission: string({{$defName}}{{$permName}}Perm),
-		Subject:    subject,
+		Subject:    subject.toProto(),
 	})
 	if err != nil {
 		return false, err
@@ -301,13 +334,13 @@ func (s *{{$defName}}Store) Lookup{{$permName}}Subjects(ctx context.Context, id 
 }
 
 // Lookup{{$permName}}Resources returns all {{$def.Name}} IDs where subject has {{.Name}} permission.
-func (s *{{$defName}}Store) Lookup{{$permName}}Resources(ctx context.Context, subject *v1.SubjectReference) ([]{{$defName}}, error) {
+func (s *{{$defName}}Store) Lookup{{$permName}}Resources(ctx context.Context, subject Subject) ([]{{$defName}}, error) {
 	var resources []{{$defName}}
 	stream, err := s.client.LookupResources(ctx, &v1.LookupResourcesRequest{
 		Consistency:        &v1.Consistency{Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true}},
 		ResourceObjectType: string(Type{{$defName}}),
 		Permission:         string({{$defName}}{{$permName}}Perm),
-		Subject:            subject,
+		Subject:            subject.toProto(),
 	})
 	if err != nil {
 		return nil, err
