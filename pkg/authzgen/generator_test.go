@@ -30,7 +30,7 @@ func findDef(t *testing.T, s *Schema, name string) Definition {
 	return Definition{}
 }
 
-// ── ToPascalCase ────────────────────────────────────────────────────────────
+// ToPascalCase ───
 
 func TestToPascalCase(t *testing.T) {
 	cases := []struct {
@@ -51,7 +51,7 @@ func TestToPascalCase(t *testing.T) {
 	}
 }
 
-// ── splitNamespace ──────────────────────────────────────────────────────────
+// splitNamespace ─
 
 func TestSplitNamespace(t *testing.T) {
 	cases := []struct {
@@ -69,7 +69,7 @@ func TestSplitNamespace(t *testing.T) {
 	}
 }
 
-// ── NewGenerator ────────────────────────────────────────────────────────────
+// NewGenerator ───
 
 func TestNewGenerator(t *testing.T) {
 	t.Run("missing schema file returns error", func(t *testing.T) {
@@ -92,7 +92,7 @@ func TestNewGenerator(t *testing.T) {
 	})
 }
 
-// ── parseSchema ─────────────────────────────────────────────────────────────
+// parseSchema ────
 
 func TestParseSchema_MissingFile(t *testing.T) {
 	g, err := NewGenerator(WithSchemaFile("/nonexistent/schema.zed"), WithOutputDir(t.TempDir()))
@@ -254,7 +254,7 @@ definition organization {
 	assert.Contains(t, permNames, "org_member")
 }
 
-// ── Generate (end-to-end) ───────────────────────────────────────────────────
+// Generate (end-to-end)────
 
 const fullSchema = `
 definition user {}
@@ -296,8 +296,16 @@ func TestGenerate_CreatesOutputFile(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, g.Generate())
 
-	_, err = os.Stat(filepath.Join(outDir, "authz.gen.go"))
-	require.NoError(t, err, "authz.gen.go should exist")
+	for _, name := range []string{
+		"client.gen.go",
+		"doctype.gen.go",
+		"organization.gen.go",
+		"team.gen.go",
+		"user.gen.go",
+	} {
+		_, err = os.Stat(filepath.Join(outDir, name))
+		require.NoError(t, err, "%s should exist", name)
+	}
 }
 
 func TestGenerate_OutputContainsExpectedSymbols(t *testing.T) {
@@ -309,51 +317,79 @@ func TestGenerate_OutputContainsExpectedSymbols(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, g.Generate())
 
-	raw, err := os.ReadFile(filepath.Join(outDir, "authz.gen.go"))
-	require.NoError(t, err)
-	src := string(raw)
+	readFile := func(name string) string {
+		raw, err := os.ReadFile(filepath.Join(outDir, name))
+		require.NoError(t, err)
+		return string(raw)
+	}
 
-	// Package declaration
-	assert.True(t, strings.HasPrefix(strings.TrimSpace(src), "// Code generated"), "must start with generated header")
-	assert.Contains(t, src, "package authz")
+	client := readFile("client.gen.go")
+	doctype := readFile("doctype.gen.go")
+	team := readFile("team.gen.go")
+	org := readFile("organization.gen.go")
+	user := readFile("user.gen.go")
 
-	// Type constants for every definition
-	assert.Contains(t, src, `TypeUser Type = "user"`)
-	assert.Contains(t, src, `TypeTeam Type = "team"`)
-	assert.Contains(t, src, `TypeOrganization Type = "organization"`)
-	assert.Contains(t, src, `TypeDoctype Type = "doctype"`)
+	// client.gen.go─
+	assert.True(t, strings.HasPrefix(strings.TrimSpace(client), "// Code generated"))
+	assert.Contains(t, client, "package authz")
+	assert.Contains(t, client, "type Type string")
+	assert.Contains(t, client, "type Client struct")
+	assert.Contains(t, client, "func NewClient(")
+	assert.NotContains(t, client, "SetupClient")
+	assert.NotContains(t, client, "GetClient")
 
-	// Relation constants for doctype
-	assert.Contains(t, src, `DoctypeAdminRel`)
-	assert.Contains(t, src, `DoctypeMaintainerRel`)
-	assert.Contains(t, src, `DoctypeTriagerRel`)
-	assert.Contains(t, src, `DoctypeWriterRel`)
-	assert.Contains(t, src, `DoctypeReaderRel`)
-	assert.Contains(t, src, `DoctypeOrganizationRel`)
+	// per-definition package declarations
+	for _, src := range []string{doctype, team, org, user} {
+		assert.Contains(t, src, "package authz")
+	}
 
-	// Permission constants for doctype
-	assert.Contains(t, src, `DoctypeCreatePerm`)
-	assert.Contains(t, src, `DoctypeReadPerm`)
-	assert.Contains(t, src, `DoctypeEditPerm`)
-	assert.Contains(t, src, `DoctypeDeletePerm`)
+	// type constants live in their own files─────
+	assert.Contains(t, user, `TypeUser Type = "user"`)
+	assert.Contains(t, team, `TypeTeam Type = "team"`)
+	assert.Contains(t, org, `TypeOrganization Type = "organization"`)
+	assert.Contains(t, doctype, `TypeDoctype Type = "doctype"`)
 
-	// Union objects struct must include both subject types
-	assert.Contains(t, src, "DoctypeAdminObjects")
-	assert.Contains(t, src, "User []User")
-	assert.Contains(t, src, "Team []Team")
+	// doctype relation & permission constants────
+	assert.Contains(t, doctype, `DoctypeAdminRel`)
+	assert.Contains(t, doctype, `DoctypeMaintainerRel`)
+	assert.Contains(t, doctype, `DoctypeTriagerRel`)
+	assert.Contains(t, doctype, `DoctypeWriterRel`)
+	assert.Contains(t, doctype, `DoctypeReaderRel`)
+	assert.Contains(t, doctype, `DoctypeOrganizationRel`)
+	assert.Contains(t, doctype, `DoctypeCreatePerm`)
+	assert.Contains(t, doctype, `DoctypeReadPerm`)
+	assert.Contains(t, doctype, `DoctypeEditPerm`)
+	assert.Contains(t, doctype, `DoctypeDeletePerm`)
 
-	// CRUD methods on Doctype
-	assert.Contains(t, src, "func (r Doctype) CreateAdminRelations(")
-	assert.Contains(t, src, "func (r Doctype) DeleteAdminRelations(")
-	assert.Contains(t, src, "func (r Doctype) ReadAdminRelations(")
+	// union objects struct has both subject types
+	assert.Contains(t, doctype, "DoctypeAdminObjects")
+	assert.Contains(t, doctype, "User []User")
+	assert.Contains(t, doctype, "Team []Team")
 
-	// Permission check / lookup methods
-	assert.Contains(t, src, "func (r Doctype) CheckCreate(")
-	assert.Contains(t, src, "func (r Doctype) CheckRead(")
-	assert.Contains(t, src, "func (r Doctype) CheckEdit(")
-	assert.Contains(t, src, "func (r Doctype) CheckDelete(")
-	assert.Contains(t, src, "func LookupDoctypeReadResources(")
-	assert.Contains(t, src, "func LookupDoctypeReadResourcesForUser(")
+	// store struct, interface, constructor
+	assert.Contains(t, doctype, "type DoctypeStore struct")
+	assert.Contains(t, doctype, "type DoctypeStoreInterface interface")
+	assert.Contains(t, doctype, "func NewDoctypeStore(")
+
+	// CRUD methods are on the store, not on the resource type
+	assert.Contains(t, doctype, "func (s *DoctypeStore) CreateAdminRelations(")
+	assert.Contains(t, doctype, "func (s *DoctypeStore) DeleteAdminRelations(")
+	assert.Contains(t, doctype, "func (s *DoctypeStore) ReadAdminRelations(")
+	assert.NotContains(t, doctype, "func (r Doctype) CreateAdminRelations(")
+
+	// permission methods are on the store─
+	assert.Contains(t, doctype, "func (s *DoctypeStore) CheckCreate(")
+	assert.Contains(t, doctype, "func (s *DoctypeStore) CheckRead(")
+	assert.Contains(t, doctype, "func (s *DoctypeStore) CheckEdit(")
+	assert.Contains(t, doctype, "func (s *DoctypeStore) CheckDelete(")
+	assert.Contains(t, doctype, "func (s *DoctypeStore) LookupReadResources(")
+	assert.Contains(t, doctype, "func (s *DoctypeStore) LookupReadSubjects(")
+
+	// old patterns must not exist──
+	assert.NotContains(t, doctype, "CheckDoctypeCreateInputs")
+	assert.NotContains(t, doctype, "func LookupDoctypeReadResources(")
+	assert.NotContains(t, doctype, "func LookupDoctypeReadResourcesForUser(")
+	assert.NotContains(t, doctype, "GetClient")
 }
 
 func TestGenerate_PrefixedNamespaceOutputFile(t *testing.T) {
@@ -372,12 +408,14 @@ definition platform/document {
 	require.NoError(t, err)
 	require.NoError(t, g.Generate())
 
-	// Package name comes from first definition prefix → "platform"
-	_, err = os.Stat(filepath.Join(outDir, "platform.gen.go"))
-	require.NoError(t, err, "platform.gen.go should exist")
-
-	raw, _ := os.ReadFile(filepath.Join(outDir, "platform.gen.go"))
-	assert.Contains(t, string(raw), "package platform")
+	// Package name comes from first definition prefix → "platform".
+	// Expect: client.gen.go + one file per definition.
+	for _, name := range []string{"client.gen.go", "user.gen.go", "document.gen.go"} {
+		_, err = os.Stat(filepath.Join(outDir, name))
+		require.NoError(t, err, "%s should exist", name)
+		raw, _ := os.ReadFile(filepath.Join(outDir, name))
+		assert.Contains(t, string(raw), "package platform", "%s should declare package platform", name)
+	}
 }
 
 func TestGenerate_InvalidSchemaReturnsError(t *testing.T) {

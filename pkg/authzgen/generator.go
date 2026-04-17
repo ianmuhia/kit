@@ -90,7 +90,7 @@ func (g *Generator) Generate() error {
 		return fmt.Errorf("failed to generate code for package %s: %w", packageName, err)
 	}
 
-	g.logger.Info("Code generation completed successfully", "package", packageName, "output", filepath.Join(g.outputDir, packageName+".gen.go"))
+	g.logger.Info("code generation completed", "package", packageName, "output_dir", g.outputDir, "files", len(schema.Definitions)+1)
 	return nil
 }
 
@@ -182,7 +182,54 @@ func (g *Generator) generateCode(packageName string, definitions []Definition) e
 		return err
 	}
 
-	tmpl := template.New("code").Funcs(template.FuncMap{
+	funcMap := buildFuncMap()
+
+	// Shared client file — one per package.
+	if err := g.renderFile("client", clientTemplate, funcMap,
+		struct{ Package string }{packageName},
+		filepath.Join(g.outputDir, "client.gen.go"),
+	); err != nil {
+		return fmt.Errorf("client file: %w", err)
+	}
+
+	// One file per definition, sorted for deterministic output.
+	sort.Slice(definitions, func(i, j int) bool {
+		return definitions[i].Name < definitions[j].Name
+	})
+	for _, def := range definitions {
+		data := struct {
+			Package    string
+			Definition Definition
+		}{packageName, def}
+		outPath := filepath.Join(g.outputDir, strings.ToLower(def.Name)+".gen.go")
+		if err := g.renderFile(def.Name, definitionTemplate, funcMap, data, outPath); err != nil {
+			return fmt.Errorf("definition %s: %w", def.Name, err)
+		}
+	}
+	return nil
+}
+
+// renderFile parses tmplStr, executes it with data, formats the result with
+// go/format, and writes it to outPath.
+func (g *Generator) renderFile(name, tmplStr string, funcMap template.FuncMap, data any, outPath string) error {
+	tmpl, err := template.New(name).Funcs(funcMap).Parse(tmplStr)
+	if err != nil {
+		return err
+	}
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return err
+	}
+	formatted, err := format.Source([]byte(buf.String()))
+	if err != nil {
+		formatted = []byte(buf.String()) // write unformatted so the caller sees the compile error
+	}
+	return os.WriteFile(outPath, formatted, 0o644)
+}
+
+// buildFuncMap returns the template.FuncMap shared by all templates.
+func buildFuncMap() template.FuncMap {
+	return template.FuncMap{
 		"camelcase": ToPascalCase,
 		"lower":     strings.ToLower,
 		"extractType": func(fullType string) string {
@@ -196,37 +243,7 @@ func (g *Generator) generateCode(packageName string, definitions []Definition) e
 			}
 			return typeName
 		},
-	})
-
-	tmpl, err := tmpl.Parse(codeTemplate)
-	if err != nil {
-		return err
 	}
-
-	sort.Slice(definitions, func(i, j int) bool {
-		return definitions[i].Name < definitions[j].Name
-	})
-
-	data := struct {
-		Package     string
-		Definitions []Definition
-	}{
-		Package:     packageName,
-		Definitions: definitions,
-	}
-
-	var buf strings.Builder
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return err
-	}
-
-	formatted, err := format.Source([]byte(buf.String()))
-	if err != nil {
-		formatted = []byte(buf.String())
-	}
-
-	filename := filepath.Join(g.outputDir, packageName+".gen.go")
-	return os.WriteFile(filename, formatted, 0o644)
 }
 
 // ToPascalCase converts a string to PascalCase

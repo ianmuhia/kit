@@ -1,0 +1,32 @@
+definition user {}
+
+definition team {
+    relation direct_member: user
+
+    permission member = direct_member
+}
+
+definition organization {
+    relation staff: user | team#member
+    relation team: team
+
+    // Organization user groups
+    permission org_member = staff + team->member
+}
+
+definition doctype {
+    relation organization: organization
+
+    // DocType roles
+    relation admin: user | team#member            // view + edit + delete + create
+    relation maintainer: user | team#member      // view + edit + delete
+    relation triager: user | team#member        // view + edit
+    relation writer: user | team#member        // view + create
+    relation reader: user | team#member       // view
+
+    // DocType permissions
+    permission create = writer + admin
+    permission read = reader + triager + writer + maintainer + admin
+    permission edit = maintainer + admin
+    permission delete = edit
+}
